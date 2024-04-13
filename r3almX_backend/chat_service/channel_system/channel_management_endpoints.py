@@ -1,4 +1,5 @@
 from fastapi import Depends
+
 from r3almX_backend.auth_service.auth_utils import get_current_user
 from r3almX_backend.auth_service.user_handler_utils import get_db
 from r3almX_backend.auth_service.user_models import User
@@ -21,6 +22,8 @@ async def create_channel(
         new_room = ChannelsModel(
             channel_name=channel_name,
             channel_description=channel_description,
+            room_id=room.id,
+            author=user.id,
         )
 
         db.add(new_room)

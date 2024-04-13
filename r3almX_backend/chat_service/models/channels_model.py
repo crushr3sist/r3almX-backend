@@ -21,6 +21,11 @@ class ChannelsModel(Base):
         "MessageModel", back_populates="channel", cascade="all, delete-orphan"
     )
 
+    def __init__(self, channel_name, channel_description, author):
+        self.channel_name = channel_name
+        self.channel_description = channel_description
+        self.author = author
+
 
 class MessageModel(Base):
     __tablename__ = "messages"
