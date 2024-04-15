@@ -23,6 +23,7 @@ async def create_channel(
     table_name = f"channels_{room_id}"
 
     try:
+
         table = Table(table_name, metadata_obj, autoload_with=engine)
         stmt = insert(table).values(
             channel_name=channel_name,
@@ -30,6 +31,7 @@ async def create_channel(
             author=user.id,
             id=uuid.uuid4(),
         )
+
         db.execute(stmt)
         db.commit()
         db.refresh(stmt)
