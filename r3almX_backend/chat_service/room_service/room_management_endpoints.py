@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from fastapi import Depends, HTTPException
 from sqlalchemy.event import listen
 
@@ -35,6 +37,7 @@ async def create_room(
 
     channel_table = create_channel_table(new_room.id)
     message_table = create_message_table(new_room.id)
+
     channel_table.create(engine, checkfirst=True)
     message_table.create(engine, checkfirst=True)
 
