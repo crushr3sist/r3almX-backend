@@ -6,6 +6,9 @@ from sqlalchemy import Table, insert, select
 from r3almX_backend.auth_service.auth_utils import get_current_user
 from r3almX_backend.auth_service.user_handler_utils import get_db
 from r3almX_backend.auth_service.user_models import User
+from r3almX_backend.chat_service.channel_system.channel_utils import (
+    insert_to_channels_table,
+)
 from r3almX_backend.chat_service.channel_system.main import channel_manager
 from r3almX_backend.chat_service.models.channels_model import ChannelsModel
 from r3almX_backend.chat_service.models.rooms_model import RoomsModel
@@ -20,22 +23,14 @@ async def create_channel(
     user: User = Depends(get_current_user),
     db=Depends(get_db),
 ):
-    table_name = f"channels_{room_id}"
-
     try:
-
-        table = Table(table_name, metadata_obj, autoload_with=engine)
-        stmt = insert(table).values(
+        insert_to_channels_table(
+            room_id,
+            db,
+            user,
             channel_name=channel_name,
             channel_description=channel_description,
-            author=user.id,
-            id=uuid.uuid4(),
         )
-
-        db.execute(stmt)
-        db.commit()
-        db.refresh(stmt)
-
         return {"message": "Channel created successfully."}
 
     except Exception as e:
