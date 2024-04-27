@@ -39,6 +39,18 @@ def check_email(email: str):
     return email if parseaddr(email)[1] else False
 
 
+def set_user_online(db, user_id: str):
+    user = db.query(user_models.User).filter(user_models.User.id == user_id).first()
+    user.is_active = True
+    db.commit()
+
+
+def set_user_offline(db, user_id: str):
+    user = db.query(user_models.User).filter(user_models.User.id == user_id).first()
+    user.is_active = False
+    db.commit()
+
+
 def create_user(db: Session, user: user_schemas.UserCreate):
     email: str = check_email(user.email)
     hashed_password: str = hash_password(user.password)

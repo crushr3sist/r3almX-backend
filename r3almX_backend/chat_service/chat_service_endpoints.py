@@ -1,14 +1,10 @@
-from fastapi import Depends, HTTPException, WebSocket, WebSocketDisconnect, status
-from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+from queue import Queue
 
-from r3almX_backend.auth_service import user_handler_utils
-from r3almX_backend.auth_service.auth_utils import TokenData
-from r3almX_backend.auth_service.Config import UsersConfig
-from r3almX_backend.auth_service.user_handler_utils import get_db, get_user_by_username
+from fastapi import Depends, WebSocket, WebSocketDisconnect
+
+from r3almX_backend.auth_service.user_handler_utils import get_db
 from r3almX_backend.chat_service.main import chat_service
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 """ 
 this is where we connect users to channels
 we need to write a **websocket handler** so multiple users
@@ -23,6 +19,43 @@ can poll messages in and out to certain channels
 - and we'll poll whats being stored
 
 """
+
+
+class RoomHandler:
+    def __init__(self, room_socket: WebSocket) -> None:
+        self.queue: Queue = []
+        self.room_id: str
+        self.room_socket: WebSocket = room_socket
+
+    def enqueue(self, message: str, user: str):
+        """this method exposes our queue so that we can enqueue messages being received"""
+        ...
+
+    def broadcast(self):
+        """this method goes through our queue and pushes messages to the room and every user inside that room"""
+        ...
+
+    def digest(self):
+        """this method pushes those messages to that specific rooms database"""
+        ...
+
+    def get_room_users(self):
+        """aggregator for all users that are part of the room"""
+        ...
+
+
+class WebSocketWorker:
+    def __init__(self) -> None:
+        self.room_sockets: RoomHandler = []
+
+    def spawn(self):
+        """once a room is created, we spawn an instance for that room specifically"""
+        new_socket = RoomHandler()
+        self.room_sockets.append(new_socket)
+
+    def intake(self):
+        """feafawef"""
+        ...
 
 
 class ConnectionManager:
@@ -40,32 +73,25 @@ class ConnectionManager:
         self.active_connections.remove(websocket)
 
 
-def _get_current_user(
-    token: str,
-    db: user_handler_utils.Session = Depends(user_handler_utils.get_db),
-):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(
-            token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
-        )
-        username: str = payload.get("sub")
-        if username is None:
-            raise credentials_exception
-        token_data = TokenData(username=username)
-    except JWTError as e:
-        raise credentials_exception from e
-    user = get_user_by_username(db, username=token_data.username)
-    if user is None:
-        raise credentials_exception
-    return user
-
-
 manager = ConnectionManager()
+
+
+@chat_service.websocket("/feed/{room_id}/ws")
+async def broadcast_(
+    websocket: WebSocket,
+    room_id: str,
+    token: str,
+    db=Depends(get_db),
+): ...
+
+
+@chat_service.websocket("/feed/{room_id}/ws")
+async def feed_ws_endpoint(
+    websocket: WebSocket,
+    room_id: str,
+    token: str,
+    db=Depends(get_db),
+): ...
 
 
 @chat_service.websocket("/feed/{room_id}/ws")
@@ -75,8 +101,6 @@ async def feed_ws_endpoint(
     token: str,
     db=Depends(get_db),
 ):
-    user = _get_current_user(token, db)
-    print(user)
     await manager.connect(websocket)
     try:
         while True:

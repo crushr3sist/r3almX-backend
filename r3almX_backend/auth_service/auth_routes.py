@@ -1,16 +1,20 @@
-from datetime import timedelta, datetime
+from datetime import datetime, timedelta
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from r3almX_backend.auth_service import user_handler_utils
 from jose import JWTError, jwt
+
+from r3almX_backend.auth_service import user_handler_utils
+
 from .auth_utils import authenticate_user, create_access_token, get_current_user
-from .main import auth_router
-from .user_models import User, AuthData
 from .Config import UsersConfig
+from .main import auth_router
+from .user_models import AuthData, User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 from io import BytesIO
+
 import pyotp
 
 
@@ -39,6 +43,24 @@ def create_user(
         return {"status_code": 400, "detail": str(e)}
 
 
+@auth_router.post("/online", tags=["Auth"])
+def go_online(
+    user_id: str,
+    db=Depends(user_handler_utils.get_db),
+):
+    user_handler_utils.set_user_online(db, user_id)
+    return {"status": 200, "user is online": user_id}
+
+
+@auth_router.post("/offline", tags=["Auth"])
+def go_offline(
+    user_id: str,
+    db=Depends(user_handler_utils.get_db),
+):
+    user_handler_utils.set_user_offline(db, user_id)
+    return {"status": 200, "user is offline": user_id}
+
+
 @auth_router.post("/token", tags=["Auth"])
 def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
@@ -61,6 +83,7 @@ def login_for_access_token(
         data={"sub": user.username},
         expire_delta=timedelta(weeks=1),
     )
+    user_handler_utils.set_user_online(db, user.id)
 
     return {"access_token": access_token, "token_type": "bearer"}
 
