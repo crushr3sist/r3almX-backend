@@ -22,6 +22,6 @@
 - [ ] ban list for rooms
 - [ ] channels crud (i want death)
 - [ ] roles crud for channels
-- [ ] write a feed websocket handler (client receiver)
-- [ ] write a broadcast digest websocket handler (client and message log updater)
+- [x] write a feed websocket handler (client receiver)
+- [x] write a broadcast digest websocket handler (client and message log updater)
 - [ ]

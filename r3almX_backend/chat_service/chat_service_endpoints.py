@@ -1,9 +1,13 @@
-from queue import Queue
+import asyncio
+import multiprocessing as mp
+import sys
+import traceback
+from concurrent.futures import ProcessPoolExecutor
+from queue import Empty, Queue
+from typing import Dict
 
 from fastapi import Depends, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
 from jose import JWTError, jwt
-from sqlalchemy.orm import sessionmaker
 
 from r3almX_backend.auth_service.auth_utils import TokenData
 from r3almX_backend.auth_service.Config import UsersConfig
@@ -12,70 +16,19 @@ from r3almX_backend.auth_service.user_models import User
 from r3almX_backend.chat_service.main import chat_service
 
 
-class RoomHandler:
-    def __init__(
-        self,
-        room_id: str,
-    ) -> None:
-
-        self.queue: Queue = Queue()
-        self.room_id: str
-        self.users: WebSocket = []
-
-    def enqueue(self, message: str, user: str) -> None:
-        """this method exposes our queue so that we can enqueue messages being received"""
-        self.queue.put((message, user))
-        self.broadcast()
-
-    async def broadcast(self) -> None:
-        """this method goes through our queue and pushes messages to the room and every user inside that room"""
-
-        for user in self.users:
-            message_to_broadcast = self.queue.get()
-            await user.send_text(message_to_broadcast[0])
-
-    def digest(self) -> None:
-        """limit of 10 messages in the queue, once queue is 10, we dispatch to db"""
-        ...
-
-    def connect_user(self, user_socket: WebSocket) -> None:
-        self.users.append(user_socket)
-
-    def disconnect_user(self, user_socket: WebSocket) -> None:
-        self.users.remove(user_socket)
-
-
-class WebSocketWorker:
-    def __init__(self) -> None:
-        # need to keep track of all the rooms that are currently active
-        # @future need to implement room_socket into redis
-        self.room_instances: dict[str, RoomHandler] = {}
-
-    def spawn(self, room_id, websocket: WebSocket) -> None:
-        """once a room is created, we spawn an instance for that room specifically"""
-        new_socket = RoomHandler(room_id)
-        new_socket.connect_user(websocket)
-        self.room_instances[room_id] = new_socket
-
-    def intake(self, room_id: str, message: str, user: str) -> None:
-        """call the enqueue function"""
-        self.room_instances[room_id].enqueue(message, user)
-
-    def has(self, room_id: str) -> bool:
-        try:
-            if self.room_instances[room_id] != None:
-                return True
-        except KeyError:
-            return False
-
-    def disconnect_surface(self, websocket, room_id):
-        self.room_instances[room_id].disconnect_user(websocket)
-
-
-ws_worker = WebSocketWorker()
-
-
 def get_user_from_token(token: str, db) -> User:
+    """
+    The function `get_user_from_token` decodes a JWT token to extract the username and retrieves the
+    corresponding user from the database.
+
+    :param token: A JWT token that contains user information
+    :type token: str
+    :param db: The `db` parameter in the `get_user_from_token` function likely refers to a database
+    connection or object that is used to interact with the database where user information is stored.
+    This parameter is essential for retrieving user data based on the token provided. It is expected to
+    be an instance of a database
+    :return: The function `get_user_from_token` is returning a `User` object.
+    """
     payload = jwt.decode(
         token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
     )
@@ -85,33 +38,104 @@ def get_user_from_token(token: str, db) -> User:
     return user
 
 
+class RoomManager:
+    def __init__(self):
+
+        self.rooms: Dict[str, set] = {}
+        self.message_queues: Dict[str, Queue] = {}
+        self.broadcast_tasks: Dict[str, asyncio.Task] = {}
+
+    async def broadcast(self, room_id: str):
+        try:
+            queue = self.message_queues[room_id]
+            room = self.rooms[room_id]
+            while True:
+                if not queue.empty():
+                    message, user = queue.get_nowait()
+                    for websocket in room:
+                        await websocket.send_text(f"{user}: {message}")
+
+                await asyncio.sleep(0.1)
+
+        except Exception as e:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            print(f"Error in broadcast task for room {room_id}: {e}")
+            traceback.print_exception(
+                exc_type, exc_value, exc_traceback, file=sys.stdout
+            )
+
+    async def start_broadcast_task(self, room_id: str):
+        if room_id not in self.broadcast_tasks:
+            self.broadcast_tasks[room_id] = asyncio.create_task(self.broadcast(room_id))
+
+    async def stop_broadcast_task(self, room_id: str):
+        if room_id in self.broadcast_tasks:
+            task = self.broadcast_tasks.pop(room_id)
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+    def add_message_to_queue(self, room_id: str, message: str, user: str):
+        queue = self.message_queues.get(room_id)
+        if queue:
+            queue.put_nowait((message, user))
+
+    async def connect_user(self, room_id: str, websocket: WebSocket):
+        room = self.rooms.get(room_id)
+        if room is None:
+            self.rooms[room_id] = set()
+            self.message_queues[room_id] = Queue()
+            self.broadcast_tasks[room_id] = asyncio.create_task(self.broadcast(room_id))
+        self.rooms[room_id].add(websocket)
+
+    async def disconnect_user(self, room_id: str, websocket: WebSocket):
+        room = self.rooms.get(room_id)
+        if room:
+            room.remove(websocket)
+            if not room:
+                del self.rooms[room_id]
+                del self.message_queues[room_id]
+                task = self.broadcast_tasks.pop(room_id)
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+
+room_manager = RoomManager()
+
+
 @chat_service.websocket("/message/{room_id}")
-async def broadcast_(
+async def websocket_endpoint(
     websocket: WebSocket, room_id: str, token: str, db=Depends(get_db)
 ):
-    print(token)
     user = get_user_from_token(token, db)
     if user:
         await websocket.accept()
+        await room_manager.connect_user(room_id, websocket)
         try:
             while True:
-                if not ws_worker.has(room_id):
-                    ws_worker.spawn(room_id, websocket)
-                text_received = await websocket.receive_text()
-                print(text_received)
-                ws_worker.intake(room_id, text_received, user.id)
+                data = await websocket.receive_text()
+                room_manager.add_message_to_queue(room_id, data, user.id)
+                await room_manager.start_broadcast_task(room_id)
         except WebSocketDisconnect:
-            ws_worker.disconnect_surface(websocket, room_id)
+            await room_manager.disconnect_user(room_id, websocket)
     else:
-        return {"status": 500, "message": "there was an issue"}
+        await websocket.close(code=1008)  # Unsupported data
 
 
 @chat_service.get("/message/rooms/")
 def get_all_connections():
-    return {
-        "connections:": {
-            str(list(ws_worker.room_sockets.keys())): str(
-                list(ws_worker.room_sockets.values())
-            )
+    data = {}
+    for room_id, room in room_manager.rooms.items():
+        queue_size = room_manager.message_queues[room_id].qsize()
+        users = [str(websocket) for websocket in room]
+        data[room_id] = {
+            "queue_size": queue_size,
+            "users_connected": len(users),
+            "users": users,
         }
-    }
+    return data
