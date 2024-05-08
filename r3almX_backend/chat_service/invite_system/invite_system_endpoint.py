@@ -81,4 +81,7 @@ async def join(
 @invite_system.put("/edit/invite", tags=["Invite"])
 async def edit_invite(
     room_id: str, user: User = Depends(get_current_user), db=Depends(get_db)
-): ...
+):
+    # generate a new invite key and modify the current record of the room id and assign the new invite link
+
+    pass
