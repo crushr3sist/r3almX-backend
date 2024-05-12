@@ -11,7 +11,7 @@ from r3almX_backend.auth_service.auth_utils import TokenData
 from r3almX_backend.auth_service.Config import UsersConfig
 from r3almX_backend.auth_service.user_handler_utils import get_db, get_user_by_username
 from r3almX_backend.auth_service.user_models import User
-from r3almX_backend.realtime_service.chat_service_endpoints import get_user_from_token
+from r3almX_backend.realtime_service.chat_service import get_user_from_token
 from r3almX_backend.realtime_service.main import realtime
 
 
