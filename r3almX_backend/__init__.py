@@ -33,12 +33,13 @@ class RealmX(FastAPI):
         from r3almX_backend.auth_service.main import auth_router
         from r3almX_backend.chat_service.channel_system.main import channel_manager
         from r3almX_backend.chat_service.invite_system.main import invite_system
-        from r3almX_backend.chat_service.main import chat_service
         from r3almX_backend.chat_service.room_service.main import rooms_service
+        from r3almX_backend.realtime_service.main import realtime
 
         self.include_router(auth_router)
+        self.include_router(realtime)
+
         self.include_router(rooms_service)
-        self.include_router(chat_service)
         self.include_router(invite_system)
         self.include_router(channel_manager)
 

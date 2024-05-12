@@ -11,7 +11,7 @@ from r3almX_backend.auth_service.auth_utils import TokenData
 from r3almX_backend.auth_service.Config import UsersConfig
 from r3almX_backend.auth_service.user_handler_utils import get_db, get_user_by_username
 from r3almX_backend.auth_service.user_models import User
-from r3almX_backend.chat_service.main import chat_service
+from r3almX_backend.realtime_service.main import realtime
 
 
 def get_user_from_token(token: str, db) -> User:
@@ -104,7 +104,7 @@ class RoomManager:
 room_manager = RoomManager()
 
 
-@chat_service.websocket("/message/{room_id}")
+@realtime.websocket("/message/{room_id}")
 async def websocket_endpoint(
     websocket: WebSocket, room_id: str, token: str, db=Depends(get_db)
 ):
@@ -124,7 +124,7 @@ async def websocket_endpoint(
         await websocket.close(code=1008)  # Unsupported data
 
 
-@chat_service.get("/message/rooms/")
+@realtime.get("/message/rooms/")
 def get_all_connections():
 
     data = {}
