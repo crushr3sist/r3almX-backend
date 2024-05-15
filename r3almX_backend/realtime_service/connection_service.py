@@ -19,7 +19,9 @@ from r3almX_backend.realtime_service.main import realtime
 
 class Connection:
     def __init__(self):
-        self.redis_client = redis.Redis()
+        self.redis_client = redis.Redis().from_url(
+            url="redis://172.22.96.1:6379", decode_responses=True, db=0
+        )
         self.connection_status_cache: Dict[str, str] = {}
         self.connection_sockets: Dict[str, WebSocket] = {}
 
@@ -61,7 +63,7 @@ class Connection:
             getattr(self, f"set_{status}")(user_id)
 
     def set_status_cache(self, user_id, status):
-        self.redis_client.hset("user_status", user_id, status)
+        self.redis_client.hset("user_status", str(user_id), status)
 
 
 connection_manager = Connection()
