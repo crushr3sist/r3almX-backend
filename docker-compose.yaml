@@ -1,0 +1,47 @@
+volumes:
+  data:
+
+networks:
+  my-network:
+    driver: bridge
+
+services:
+  postgres:
+    image: postgres:latest
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=ronny
+    ports:
+      - "5432:5432"
+    volumes:
+      - data:/var/lib/postgresql
+    networks:
+      - my-network
+    restart: always
+
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+      - target: 6379
+    networks:
+      - my-network
+    restart: always
+    privileged: true
+    cap_add:
+      - SYS_ADMIN
+
+
+  realmx:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      DATABASE_URL: "postgresql://postgres:ronny@localhost:5432"
+      REDIS_URL: "redis://redis:6379"
+

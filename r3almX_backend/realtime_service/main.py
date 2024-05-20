@@ -4,4 +4,3 @@ realtime = APIRouter()
 
 from .chat_service import *
 from .connection_service import *
-from .notification_service import *

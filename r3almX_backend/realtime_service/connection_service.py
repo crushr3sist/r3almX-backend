@@ -1,20 +1,13 @@
 import asyncio
 import datetime
-import json
-import sys
-import traceback
 from queue import Queue
 from typing import Dict
 
 import redis
 from fastapi import Depends, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
-from jose import JWTError, jwt
 
-from r3almX_backend.auth_service.auth_utils import TokenData
-from r3almX_backend.auth_service.Config import UsersConfig
-from r3almX_backend.auth_service.user_handler_utils import get_db, get_user_by_username
-from r3almX_backend.auth_service.user_models import User
+from r3almX_backend.auth_service.user_handler_utils import get_db
 from r3almX_backend.realtime_service.chat_service import get_user_from_token
 from r3almX_backend.realtime_service.main import realtime
 
@@ -68,6 +61,20 @@ class Connection:
 connection_manager = Connection()
 
 # write an endpoint to read all of redis and return it as json
+
+
+class NotificationSystem:
+    def __init__(self):
+        self.types = {
+            1: "RoomPost",
+            2: "FriendRequest",
+            3: "RoomInvitation",
+            4: "DM",
+        }
+        self.connections = connection_manager
+
+    def return_user(self, user_id):
+        return self.connections.connection_cache_list.get(user_id)
 
 
 @realtime.get("/redis")
