@@ -11,6 +11,7 @@ from r3almX_backend.auth_service.auth_utils import TokenData
 from r3almX_backend.auth_service.Config import UsersConfig
 from r3almX_backend.auth_service.user_handler_utils import get_db, get_user_by_username
 from r3almX_backend.auth_service.user_models import User
+from r3almX_backend.realtime_service.connection_service import NotificationSystem
 from r3almX_backend.realtime_service.main import realtime
 
 
@@ -102,13 +103,13 @@ class RoomManager:
 
 
 room_manager = RoomManager()
+notification_system = NotificationSystem()
 
 
 @realtime.websocket("/message/{room_id}")
 async def websocket_endpoint(
     websocket: WebSocket, room_id: str, token: str, db=Depends(get_db)
 ):
-
     user = get_user_from_token(token, db)
     if user:
         await websocket.accept()
@@ -118,10 +119,13 @@ async def websocket_endpoint(
                 data = await websocket.receive_text()
                 room_manager.add_message_to_queue(room_id, data, user.id)
                 await room_manager.start_broadcast_task(room_id)
+                await notification_system.send_notification_to_user(
+                    user.id, f"New message in room {room_id}: {data}"
+                )
         except WebSocketDisconnect:
             await room_manager.disconnect_user(room_id, websocket)
     else:
-        await websocket.close(code=1008)  # Unsupported data
+        await websocket.close(code=1008)
 
 
 @realtime.get("/message/rooms/")

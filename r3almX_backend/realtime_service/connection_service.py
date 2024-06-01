@@ -6,10 +6,27 @@ from typing import Dict
 import redis
 from fastapi import Depends, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
+from jose import JWTError, jwt
 
-from r3almX_backend.auth_service.user_handler_utils import get_db
-from r3almX_backend.realtime_service.chat_service import get_user_from_token
+from r3almX_backend.auth_service.auth_utils import TokenData
+from r3almX_backend.auth_service.Config import UsersConfig
+from r3almX_backend.auth_service.user_handler_utils import get_db, get_user_by_username
+from r3almX_backend.auth_service.user_models import User
 from r3almX_backend.realtime_service.main import realtime
+
+
+def get_user_from_token(token: str, db) -> User:
+
+    try:
+        payload = jwt.decode(
+            token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
+        )
+        username: str = payload.get("sub")
+        token_data = TokenData(username=username)
+        user = get_user_by_username(db, username=token_data.username)
+        return user
+    except JWTError as j:
+        return j
 
 
 class Connection:
@@ -57,10 +74,13 @@ class Connection:
     def set_status_cache(self, user_id, status):
         self.redis_client.hset("user_status", str(user_id), status)
 
+    async def send_notification(self, user_id, message):
+        websocket = self.connection_sockets.get(user_id)
+        if websocket:
+            await websocket.send_text(message)
+
 
 connection_manager = Connection()
-
-# write an endpoint to read all of redis and return it as json
 
 
 class NotificationSystem:
@@ -76,22 +96,22 @@ class NotificationSystem:
     def return_user(self, user_id):
         return self.connections.connection_cache_list.get(user_id)
 
+    async def send_notification_to_user(self, user_id, message):
+        await self.connections.send_notification(user_id, message)
+
 
 @realtime.get("/redis")
 async def read_redis(token: str, db=Depends(get_db)):
     user = get_user_from_token(token, db)
-
     cached_data = connection_manager.get_status_cache(user.id)
     return JSONResponse(cached_data)
 
 
 @realtime.websocket("/connection")
 async def connect(websocket: WebSocket, token: str, db=Depends(get_db)):
-
     user = get_user_from_token(token, db)
     if user:
         await websocket.accept()
-
         connection_manager.connect(user.id)
         connection_manager.connection_sockets[user.id] = websocket
         last_activity = datetime.datetime.now()
@@ -101,36 +121,39 @@ async def connect(websocket: WebSocket, token: str, db=Depends(get_db)):
             while True:
                 try:
                     if connection_manager.is_connected(user.id) is False:
-                        connection_manager.connection_socket[str(user.id)] = websocket
+                        connection_manager.connection_sockets[str(user.id)] = websocket
                         connection_manager.set_status_cache(
-                            connection_manager.get_status(user.id)
+                            user.id, connection_manager.get_status(user.id)
                         )
                     connection_change_request = await websocket.receive_json()
-
-                    # through this we can just check for keys inside of the change request
-                    if connection_change_request["status"]:
+                    if "status" in connection_change_request:
                         connection_manager.set_status(
                             user.id, connection_change_request["status"]
                         )
-
                 except asyncio.TimeoutError:
                     try:
                         await websocket.send_text("ping")
                         await asyncio.wait_for(
                             websocket.receive_text(), timeout=heartbeat_interval / 2
                         )
-                        last_activity = datetime.now()
-
+                        last_activity = datetime.datetime.now()
                     except (asyncio.TimeoutError, WebSocketDisconnect):
                         if (
-                            datetime.now() - last_activity
+                            datetime.datetime.now() - last_activity
                         ).total_seconds() > expiry_timeout:
                             print(f"disconnecting user: {user.id} ")
                             await websocket.close()
                             connection_manager.disconnect(user.id)
                             break
-
         except WebSocketDisconnect:
             connection_manager.disconnect(user.id)
     else:
         return websocket.close(1001)
+
+
+# Now to use the NotificationSystem to send a notification to a user:
+notification_system = NotificationSystem()
+
+
+async def notify_user(user_id, message):
+    await notification_system.send_notification_to_user(user_id, message)
