@@ -77,7 +77,7 @@ class Connection:
     async def send_notification(self, user_id, message):
         websocket = self.connection_sockets.get(user_id)
         if websocket:
-            await websocket.send_text(message)
+            await websocket.send_json({"sender": str(user_id), "message": message})
 
 
 connection_manager = Connection()
@@ -114,11 +114,16 @@ async def connect(websocket: WebSocket, token: str, db=Depends(get_db)):
         await websocket.accept()
         connection_manager.connect(user.id)
         connection_manager.connection_sockets[user.id] = websocket
+
         last_activity = datetime.datetime.now()
         heartbeat_interval = 30
         expiry_timeout = 100
+
         try:
             while True:
+                await websocket.send_json(
+                    {"status": "200", "connection": "established"}
+                )
                 try:
                     if connection_manager.is_connected(user.id) is False:
                         connection_manager.connection_sockets[str(user.id)] = websocket

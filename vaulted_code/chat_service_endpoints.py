@@ -127,3 +127,133 @@ async def broadcast_(
             ws_worker.disconnect_surface(websocket, room_id)
     else:
         return {"status": 500, "message": "there was an issue"}
+
+
+# rabbitmq version queueing
+
+import asyncio
+import sys
+import traceback
+from typing import Dict
+
+import aio_pika
+from fastapi import Depends, WebSocket, WebSocketDisconnect
+from jose import JWTError, jwt
+
+from r3almX_backend.auth_service.auth_utils import TokenData
+from r3almX_backend.auth_service.Config import UsersConfig
+from r3almX_backend.auth_service.user_handler_utils import get_db, get_user_by_username
+from r3almX_backend.auth_service.user_models import User
+from r3almX_backend.realtime_service.connection_service import NotificationSystem
+from r3almX_backend.realtime_service.main import realtime
+
+RABBITMQ_URL = "amqp://rabbitmq:rabbitmq@localhost:5672/"
+
+
+def get_user_from_token(token: str, db) -> User:
+    try:
+        payload = jwt.decode(
+            token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
+        )
+        username: str = payload.get("sub")
+        token_data = TokenData(username=username)
+        user = get_user_by_username(db, username=token_data.username)
+        return user
+    except JWTError:
+        return None
+
+
+class RoomManager:
+    def __init__(self):
+        self.rooms: Dict[str, set] = {}
+        self.queues: Dict[str, aio_pika.Queue] = {}
+        self.broadcast_tasks: Dict[str, asyncio.Task] = {}
+
+    async def setup_rabbitmq(self, room_id: str):
+        connection = await aio_pika.connect_robust(RABBITMQ_URL)
+        async with connection:
+            channel = await connection.channel()
+            queue_name = f"room_{room_id}"
+            queue = await channel.declare_queue(queue_name)
+            self.queues[room_id] = queue
+            self.broadcast_tasks[room_id] = asyncio.create_task(self.broadcast(room_id))
+
+    async def broadcast(self, room_id: str):
+        room = self.rooms[room_id]
+        queue = self.queues[room_id]
+        try:
+            async with queue.iterator() as queue_iter:
+                async for message in queue_iter:
+                    async with message.process():
+                        msg_body, user_id = message.body.decode().split(":")
+                        for websocket in room:
+                            await websocket.send_json({user_id: msg_body})
+        except Exception as e:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            print(f"Error in broadcast task for room {room_id}: {e}")
+            traceback.print_exception(
+                exc_type, exc_value, exc_traceback, file=sys.stdout
+            )
+
+    async def add_message_to_queue(self, room_id: str, message: str, user_id: str):
+        queue = self.queues[room_id]
+        await queue.channel.default_exchange.publish(
+            aio_pika.Message(body=f"{message}:{user_id}".encode()),
+            routing_key=queue.name,
+        )
+
+    async def connect_user(self, room_id: str, websocket: WebSocket):
+        if room_id not in self.rooms:
+            self.rooms[room_id] = set()
+            await self.setup_rabbitmq(room_id)
+        self.rooms[room_id].add(websocket)
+
+    async def disconnect_user(self, room_id: str, websocket: WebSocket):
+        room = self.rooms.get(room_id)
+        if room:
+            room.remove(websocket)
+            if not room:
+                del self.rooms[room_id]
+                task = self.broadcast_tasks.pop(room_id)
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+
+room_manager = RoomManager()
+notification_system = NotificationSystem()
+
+
+@realtime.websocket("/message/{room_id}")
+async def websocket_endpoint(
+    websocket: WebSocket, room_id: str, token: str, db=Depends(get_db)
+):
+    user = get_user_from_token(token, db)
+    if user:
+        await websocket.accept()
+        await room_manager.connect_user(room_id, websocket)
+        try:
+            while True:
+                data = await websocket.receive_text()
+                await room_manager.add_message_to_queue(room_id, data, user.id)
+                await notification_system.send_notification_to_user(
+                    user.id, {"room_id": room_id, "data": data}
+                )
+        except WebSocketDisconnect:
+            await room_manager.disconnect_user(room_id, websocket)
+    else:
+        await websocket.close(code=1008)
+
+
+@realtime.get("/message/rooms/")
+def get_all_connections():
+    data = {}
+    for room_id, room in room_manager.rooms.items():
+        users = [str(websocket) for websocket in room]
+        data[room_id] = {
+            "users_connected": len(users),
+            "users": users,
+        }
+    return data
