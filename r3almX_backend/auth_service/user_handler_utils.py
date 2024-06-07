@@ -11,7 +11,7 @@ from . import user_models, user_schemas
 password_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 
-def get_user(db: Session, user_id: int):
+def get_user(db: Session, user_id):
     return db.query(user_models.User).filter(user_models.User.id == user_id).first()
 
 
