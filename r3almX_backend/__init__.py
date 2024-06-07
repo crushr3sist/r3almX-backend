@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, logger
 from fastapi.middleware.cors import CORSMiddleware
+from loguru import logger
 from starlette.middleware.sessions import SessionMiddleware
 
 
@@ -58,3 +59,18 @@ class RealmX(FastAPI):
 
 
 r3almX = RealmX()
+
+
+@r3almX.middleware("http")
+async def log_requests(request: Request, call_next):
+    log_message = (
+        f"IP Address: {request.client.host} | "
+        f"User Agent: {request.headers.get('User-Agent')} | "
+        f"Referrer: {request.headers.get('Referrer')} | "
+        f"Request Method: {request.method} | "
+        f"Request URL: {request.url}"
+    )
+    logger.info(log_message)
+
+    response = await call_next(request)
+    return response

@@ -74,8 +74,10 @@ def get_user_from_token(token: str, db) -> User:
 
 
 # 1711 south extension road
-class MessageDigestion:
+class DigestionBroker:
     def __init__(self): ...
+
+
 class RoomManager:
     """
     Class to manage rooms and handle messaging between connected clients.

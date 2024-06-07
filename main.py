@@ -1,7 +1,8 @@
 import logging
 import random
-import subprocess
 import re
+import subprocess
+
 import uvicorn
 
 
@@ -24,4 +25,6 @@ if __name__ == "__main__":
         port=8000,
         reload=True,
         use_colors=True,
+        log_level="info",
+        access_log=True,
     )
