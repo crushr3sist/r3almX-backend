@@ -246,27 +246,26 @@ class RoomManager:
         print(f"User connected to room {room_id}")
 
     async def disconnect_user(self, room_id: str, websocket: WebSocket):
-        """
-        The function disconnects a user from a room and performs cleanup tasks if the room becomes
-        empty.
-
-        :param room_id: The `room_id` parameter is a string that represents the unique identifier of the
-        room from which the user is being disconnected
-        :type room_id: str
-        :param websocket: WebSocket is a communication protocol that provides full-duplex communication
-        channels over a single TCP connection. In this context, it is likely being used to establish a
-        connection between the server and the client for real-time communication in a web application.
-        The `websocket` parameter in the `disconnect_user` method represents
-        :type websocket: WebSocket
-        """
         room = self.rooms.get(room_id)
         if room:
             room.remove(websocket)
             if not room:
                 del self.rooms[room_id]
-                await self.rabbit_queues[room_id].delete()
-                del self.rabbit_queues[room_id]
                 await self.stop_broadcast_task(room_id)
+
+                # Ensure the queue is not in use before deleting it
+                queue = self.rabbit_queues[room_id]
+                try:
+                    await queue.close()  # Ensure the queue is closed
+                    await queue.purge()  # Ensure no pending messages in the queue
+                    await queue.delete()  # Now delete the queue safely
+                    print(f"Queue {room_id} successfully deleted.")
+                except Exception as e:
+                    print(f"Failed to delete queue {room_id}: {e}")
+
+                # Remove the queue and channel from the dictionaries
+                del self.rabbit_queues[room_id]
+                del self.rabbit_channels[room_id]
                 print(f"Deleted queue and stopped task for room {room_id}")
 
     def set_db(self, db):
