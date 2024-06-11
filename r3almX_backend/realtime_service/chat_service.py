@@ -99,7 +99,6 @@ class RoomManager:
                     async with message.process():
                         # Decode the message body and split it into user and data
                         message_received = json.loads(message.body.decode())
-
                         # Send the message to each connected WebSocket in the room
                         for websocket in room:
                             await websocket.send_json(
