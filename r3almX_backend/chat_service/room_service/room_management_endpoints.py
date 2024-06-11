@@ -78,7 +78,7 @@ async def fetch_rooms(user: User = Depends(get_current_user), db=Depends(get_db)
     except Exception as e:
         return {"status": 400, "rooms": "User is not in any rooms"}
 
-    return {"status": 200, "rooms": rooms}
+    return {"status": 200, "rooms": rooms[0]}
 
 
 @rooms_service.put("/edit", tags=["Room"])

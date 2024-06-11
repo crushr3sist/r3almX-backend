@@ -100,7 +100,7 @@ class NotificationSystem:
         await self.connections.send_notification(user_id, message)
 
 
-@realtime.get("/redis")
+@realtime.get("/status")
 async def read_redis(token: str, db=Depends(get_db)):
     user = get_user_from_token(token, db)
     cached_data = connection_manager.get_status_cache(user.id)

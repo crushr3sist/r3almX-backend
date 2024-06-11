@@ -1,6 +1,11 @@
 import asyncio
+import json
+import random
+import string
 import sys
 import traceback
+import uuid
+from datetime import datetime
 from typing import Dict
 
 # aio_pika is a library for working with RabbitMQ message queues
@@ -31,12 +36,6 @@ rabbit_connection = None
 
 
 async def get_rabbit_connection():
-    """
-    The function `get_rabbit_connection` establishes a connection to a RabbitMQ server using aio_pika
-    library in Python.
-    :return: The function `get_rabbit_connection` is returning the RabbitMQ connection object
-    `rabbit_connection`.
-    """
 
     global rabbit_connection
     # If the connection is None or closed, create a new connection
@@ -48,18 +47,6 @@ async def get_rabbit_connection():
 
 
 def get_user_from_token(token: str, db) -> User:
-    """
-    The function `get_user_from_token` decodes a JWT token to retrieve the username and fetches the
-    corresponding user from the database.
-
-    :param token: A JWT token that contains user information
-    :type token: str
-    :param db: The `db` parameter in the `get_user_from_token` function likely refers to a database
-    connection or session object that is used to interact with the database where user information is
-    stored. This parameter is essential for querying the database to retrieve the user associated with
-    the token. It is assumed that the `
-    :return: An exception of type `JWTError` is being returned.
-    """
 
     try:
         payload = jwt.decode(
@@ -73,7 +60,6 @@ def get_user_from_token(token: str, db) -> User:
         return j
 
 
-# 1711 south extension road
 class DigestionBroker:
     def __init__(self): ...
 
@@ -97,17 +83,6 @@ class RoomManager:
         self.broadcast_tasks: Dict[str, asyncio.Task] = {}
 
     async def broadcast(self, room_id: str):
-        """
-        The `broadcast` function sends messages from a RabbitMQ queue to connected WebSockets in a specific
-        room.
-
-        :param room_id: The `broadcast` method you provided seems to be responsible for sending messages
-        from a RabbitMQ queue to connected WebSockets in a specific room identified by `room_id`
-        :type room_id: str
-        :return: If the queue for the specified room is not initialized, the message "Queue for room
-        {room_id} is not initialized" will be printed and the function will return without further
-        processing.
-        """
 
         try:
             # Get the RabbitMQ queue for the room
@@ -123,17 +98,25 @@ class RoomManager:
                 async for message in queue_iter:
                     async with message.process():
                         # Decode the message body and split it into user and data
-                        user, data = message.body.decode().split(":", 1)
+                        message_received = json.loads(message.body.decode())
+
                         # Send the message to each connected WebSocket in the room
                         for websocket in room:
                             await websocket.send_json(
                                 {
-                                    user: data,
-                                    "username": get_user(self.db, user).username,
+                                    "message": message_received["message"],
+                                    "username": get_user(
+                                        self.db, message_received["user"]
+                                    ).username,
+                                    "uid": message_received["user"],
+                                    "time_stamp": datetime.now().strftime(
+                                        "%Y-%m-%d %I:%M:%S %p"
+                                    ),
+                                    "mid": message_received["id"],
                                 }
                             )
                             # await self.digestion()
-                            print(f"Sent message to websocket: {user}: {data}")
+                            print(f"Sent message to websocket: {message_received["user"]}: {message_received["message"]}")
 
         except Exception as e:
             # Print the exception traceback if an error occurs
@@ -154,28 +137,13 @@ class RoomManager:
         ...
 
     async def start_broadcast_task(self, room_id: str):
-        """
-        The function `start_broadcast_task` creates a new broadcast task for a given room ID if one does
-        not already exist.
 
-        :param room_id: The `room_id` parameter is a string that represents the unique identifier of a
-        room for which a broadcast task is being started
-        :type room_id: str
-        """
         if room_id not in self.broadcast_tasks:
             print(f"Starting broadcast task for room {room_id}")
             self.broadcast_tasks[room_id] = asyncio.create_task(self.broadcast(room_id))
 
     async def stop_broadcast_task(self, room_id: str):
-        """
-        This Python async function stops a broadcast task for a specific room ID if it is currently
-        running.
 
-        :param room_id: The `room_id` parameter in the `stop_broadcast_task` method is a string that
-        represents the unique identifier of the room for which the broadcast task needs to be stopped.
-        This method is designed to stop a specific broadcast task associated with the given `room_id`
-        :type room_id: str
-        """
         if room_id in self.broadcast_tasks:
             print(f"Stopping broadcast task for room {room_id}")
             task = self.broadcast_tasks.pop(room_id)
@@ -185,45 +153,23 @@ class RoomManager:
             except asyncio.CancelledError:
                 pass
 
-    async def add_message_to_queue(self, room_id: str, message: str, user: str):
-        """
-        This Python async function adds a message to a queue in a RabbitMQ server for a specific room.
+    async def add_message_to_queue(
+        self, room_id: str, message: str, user: str, mid: str
+    ):
 
-        :param room_id: The `room_id` parameter in the `add_message_to_queue` method is a string that
-        represents the unique identifier of the room where the message will be added to the queue
-        :type room_id: str
-        :param message: The `add_message_to_queue` method is an asynchronous function that adds a
-        message to a queue in a RabbitMQ server. The parameters are as follows:
-        :type message: str
-        :param user: The `user` parameter in the `add_message_to_queue` method represents the user who
-        is sending the message. It is a string that contains the name or identifier of the user who is
-        sending the message to the specified room
-        :type user: str
-        """
         channel = self.rabbit_channels.get(room_id)
+        message_data = {"user": str(user), "message": message, "id": mid}
         if channel:
             await channel.default_exchange.publish(
-                aio_pika.Message(body=f"{user}:{message}".encode()),
+                aio_pika.Message(body=json.dumps(message_data).encode()),
                 routing_key=self.rabbit_queues[room_id].name,
             )
             print(
-                f"Added message to queue {self.rabbit_queues[room_id].name}: {user}:{message}"
+                f"Added message to queue {self.rabbit_queues[room_id].name}: {user}:{message}, id:{mid}"
             )
 
     async def connect_user(self, room_id: str, websocket: WebSocket):
-        """
-        This Python async function connects a user to a specified room by setting up a RabbitMQ queue
-        and channel for communication.
 
-        :param room_id: The `room_id` parameter is a string that represents the identifier of the room
-        to which the user is connecting
-        :type room_id: str
-        :param websocket: The `websocket` parameter in the `connect_user` method represents the
-        WebSocket connection of the user who is connecting to a specific room. This WebSocket connection
-        allows bidirectional communication between the server and the client, enabling real-time data
-        exchange. In this method, the WebSocket connection is added to the set of
-        :type websocket: WebSocket
-        """
         # Get the set of connected WebSockets for the room
         room = self.rooms.get(room_id)
         if room is None:
@@ -281,6 +227,10 @@ async def websocket_endpoint(
     websocket: WebSocket, room_id: str, token: str, db=Depends(get_db)
 ):
     user = get_user_from_token(token, db)
+    print("{username:", user.username, ",")
+    print("id:", user.id, ",")
+    print("email:", user.email, "}")
+
     room_manager.set_db(db)
     if user:
         await websocket.accept()
@@ -288,9 +238,20 @@ async def websocket_endpoint(
         try:
             while True:
                 data = await websocket.receive_text()
-                await room_manager.add_message_to_queue(room_id, data, user.id)
+                mid = str(
+                    (
+                        lambda length=8: "".join(
+                            random.choices(
+                                string.ascii_lowercase + string.digits,
+                                k=length,
+                            )
+                        )
+                    )()
+                )
+                await room_manager.add_message_to_queue(room_id, data, user.id, mid)
+
                 await notification_system.send_notification_to_user(
-                    user.id, {"room_id": room_id, "data": data}
+                    user.id, {"room_id": room_id, "mid": mid}
                 )
         except WebSocketDisconnect:
             await room_manager.disconnect_user(room_id, websocket)
