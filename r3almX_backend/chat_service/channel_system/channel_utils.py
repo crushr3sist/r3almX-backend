@@ -12,7 +12,7 @@ def insert_to_channels_table(room_id, db, user, channel_name, channel_descriptio
         channel_name=channel_name,
         channel_description=channel_description,
         author=user.id,
-        id=uuid.uuid4(),
+        id=str(uuid.uuid4()),
     )
 
     db.execute(stmt)
