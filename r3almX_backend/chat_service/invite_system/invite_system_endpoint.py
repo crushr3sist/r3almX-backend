@@ -19,6 +19,20 @@ this is where the CRUD operations are handled for our invite system
 async def get_invite(
     room_id: str, user: User = Depends(get_current_user), db=Depends(get_db)
 ):
+    """
+    Endpoint to get the invite link for a specific room.
+
+    Parameters:
+    - room_id (str): The ID of the room for which the invite link is requested.
+    - user (User): The current user making the request.
+    - db: The database session dependency.
+
+    Returns:
+    dict: A dictionary containing the status and the invite link if the room ID is valid.
+
+    Raises:
+    HTTPException: If the room ID is invalid (status code 404).
+    """
     invite_link = (
         db.query(RoomsModel)
         .filter(RoomsModel.room_owner == user.id)
