@@ -1,3 +1,4 @@
+# bump_version.py
 import toml
 from semantic_version import Version
 
@@ -12,6 +13,7 @@ def update_version(new_version, file_path="pyproject.toml"):
     with open(file_path, "r") as f:
         data = toml.load(f)
 
+    # Update the version in the file
     data["tool"]["semantic-version"]["current_version"] = str(new_version)
 
     with open(file_path, "w") as f:
@@ -35,4 +37,5 @@ def bump_version(bump_type="patch"):
 
 
 # Example usage
-bump_version("minor")
+if __name__ == "__main__":
+    bump_version("patch")

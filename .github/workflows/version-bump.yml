@@ -23,13 +23,7 @@ jobs:
 
       - name: Bump Version
         run: |
-          python -c "import toml, semantic_version; \
-                     with open('pyproject.toml', 'r') as f: data = toml.load(f); \
-                     current_version = semantic_version.Version(data['tool']['semantic-version']['current_version']); \
-                     new_version = current_version.next_patch(); \
-                     data['tool']['semantic-version']['current_version'] = str(new_version); \
-                     with open('pyproject.toml', 'w') as f: toml.dump(data, f); \
-                     print('Version bumped to:', new_version);"
+          python bump_version.py
 
       - name: Commit changes
         run: |
