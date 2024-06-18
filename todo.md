@@ -1,16 +1,16 @@
 # wholistic Todo
 
-- [ ] setup an endpoint for rooms that user is in
-- [ ] integrate couplement in message and connection-service
+- [x] setup an endpoint for rooms that user is in
+- [x] integrate couplement in message and connection-service
 
-  - [ ] if there's activity in a room, all users must be notified
+  - [x] if there's activity in a room, all users must be notified
   - [ ] if users are offline, their notif are cached with room name and number
 
 - [ ] notifs
 
-  - [ ] setup cache
-  - [ ] increment notifs if client doesn't return acknowledgement
-  - [ ] decrement through endpoint
+  - [x] setup cache
+  - [x] increment notifs if client doesn't return acknowledgement
+  - [x] decrement through endpoint
 
 - [ ] Notification Service: Develop a service to handle notifications for various events such as new messages, friend requests, room invitations, and mentions. This service can deliver notifications in real-time via websockets or push notifications.
 
