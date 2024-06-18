@@ -3,11 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from starlette.middleware.sessions import SessionMiddleware
 
+from .version import __version__
+
 
 class RealmX(FastAPI):
     def __init__(self, *, title: str = "r3almX", description: str = "r3almX API"):
         super().__init__(
             title=title,
+            version=__version__,
             description=description,
             tags_metadata=[
                 {"name": "Auth", "description": "Auth Endpoints"},
