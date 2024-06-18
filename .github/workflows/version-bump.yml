@@ -1,9 +1,9 @@
-name: Bump Version
+name: Automated Version Bump
 
 on:
   push:
     branches:
-      - main
+      - main # or whichever branch you want to automate the version bump for
 
 jobs:
   bump-version:
@@ -25,7 +25,7 @@ jobs:
         run: |
           python bump_version.py
 
-      - name: Commit changes
+      - name: Commit and Push Changes
         env:
           GITHUB_TOKEN: ${{ secrets.ACTIONS_TOKEN }}
         run: |
@@ -33,4 +33,4 @@ jobs:
           git config --global user.email 'actions@github.com'
           git add pyproject.toml
           git commit -m "Bump version to $(python -c 'import toml; print(toml.load(open("pyproject.toml"))["tool"]["semantic-version"]["current_version"])')"
-          git push https://github-actions:${GITHUB_TOKEN}@github.com/crushr3sist/r3almX-backend.git HEAD:main
+          git push origin main  # Change 'main' to your target branch
