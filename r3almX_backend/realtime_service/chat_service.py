@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import json
 import random
 import string
@@ -16,6 +17,10 @@ from fastapi import Depends, WebSocket, WebSocketDisconnect
 
 # Imports from jose for working with JSON Web Tokens (JWT)
 from jose import JWTError, jwt
+from sqlalchemy import Column, DateTime, ForeignKey, String, Table, insert
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
 
 # Imports from the project's auth_service module
 from r3almX_backend.auth_service.auth_utils import TokenData
@@ -28,6 +33,8 @@ from r3almX_backend.auth_service.user_handler_utils import (
 from r3almX_backend.auth_service.user_models import User
 
 # Imports from the project's realtime_service module
+from r3almX_backend.chat_service.channel_system.channel_utils import get_message_model
+from r3almX_backend.database import *
 from r3almX_backend.realtime_service.connection_service import NotificationSystem
 from r3almX_backend.realtime_service.main import realtime
 
@@ -61,7 +68,68 @@ def get_user_from_token(token: str, db) -> User:
 
 
 class DigestionBroker:
-    def __init__(self): ...
+    def __init__(self, batch_size=10, flush_interval=5): 
+        self.batch_size = batch_size
+        self.flush_interval = flush_interval
+        self.message_batch = []
+        self.lock = asyncio.Lock()
+
+    async def add_message(self, room_id, user_id, message, db):
+        async with self.lock:
+            msg_id = str(uuid.uuid4())
+            msg_data = {
+                "id": msg_id,
+                "room_id": room_id,
+                "user_id": user_id,
+                "message": message,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            self.message_batch.append(msg_data)
+            print(f"Added message to batch: {msg_data}")
+
+            if len(self.message_batch) >= self.batch_size:
+                await self.flush_to_db(db)
+
+    async def flush_to_db(self, db):
+        if not self.message_batch:
+            return
+
+        async with self.lock:
+            try:
+                for msg in self.message_batch:
+                    table_name = f"messages_{msg['room_id']}"
+                    table = get_message_model(table_name)
+                    stmt = insert(table).values(
+                        id=msg['id'],
+                        sender=msg['user_id'],
+                        message=msg['message'],
+                        timestamp=msg['timestamp'],
+                    )
+                    db.execute(stmt)
+                db.commit()
+                print(f"Flushed {len(self.message_batch)} messages to DB")
+                self.message_batch.clear()
+            except Exception as e:
+                print(e)
+                db.rollback()
+
+    async def start_flush_scheduler(self, get_db):
+        while True:
+            await asyncio.sleep(self.flush_interval)
+            async with get_db() as db:  # Use dependency function to get the db session
+                await self.flush_to_db(db)
+
+            
+# Get the database dependency function
+async def get_db_session():
+    async with get_db() as db:
+        yield db
+
+# Modified DigestionBroker initialization to include the dependency injection
+digestion_broker = DigestionBroker(batch_size=10, flush_interval=5)
+
+# Pass the get_db function to start_flush_scheduler
+asyncio.create_task(digestion_broker.start_flush_scheduler(get_db_session))
 
 
 class RoomManager:
@@ -125,15 +193,7 @@ class RoomManager:
                 exc_type, exc_value, exc_traceback, file=sys.stdout
             )
 
-    async def digestion(
-        self, user_id: str, room_id: str, message: str, time_stamp: str
-    ):
-        # like our other tasks, we need to come up with a broker system so that we can submit
-        # tasks so that we can commit messages in a non-blocking manner
-        # maybe collect messages in 10 batches and then commit them in a single transaction
-        # how could we collect the messages. we need another class.
-
-        ...
+  
 
     async def start_broadcast_task(self, room_id: str):
 
@@ -153,7 +213,7 @@ class RoomManager:
                 pass
 
     async def add_message_to_queue(
-        self, room_id: str, message: str, user: str, mid: str
+        self, room_id: str, message: str, user: str, mid: str, db
     ):
 
         channel = self.rabbit_channels.get(room_id)
@@ -166,6 +226,7 @@ class RoomManager:
             print(
                 f"Added message to queue {self.rabbit_queues[room_id].name}: {user}:{message}, id:{mid}"
             )
+            await digestion_broker.add_message(room_id, user, message, db)
 
     async def connect_user(self, room_id: str, websocket: WebSocket):
 
@@ -247,7 +308,7 @@ async def websocket_endpoint(
                         )
                     )()
                 )
-                await room_manager.add_message_to_queue(room_id, data, user.id, mid)
+                await room_manager.add_message_to_queue(room_id, data, user.id, mid, db)
 
                 await notification_system.send_notification_to_user(
                     user.id, {"room_id": room_id, "mid": mid}
@@ -256,6 +317,7 @@ async def websocket_endpoint(
             await room_manager.disconnect_user(room_id, websocket)
     else:
         await websocket.close(code=1008)
+
 
 
 @realtime.get("/message/rooms/")

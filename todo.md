@@ -1,5 +1,8 @@
 # wholistic Todo
 
+- [ ] implement saving messages to the corresponding channel id
+- [ ] just supplying the commit method with the channel id, sender
+
 - [x] setup an endpoint for rooms that user is in
 - [x] integrate couplement in message and connection-service
 

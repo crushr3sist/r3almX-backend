@@ -73,9 +73,7 @@ async def fetch_rooms(user: User = Depends(get_current_user), db=Depends(get_db)
     try:
         for users_rooms in set(user.rooms_joined):
             _channel_query = get_channel_model(users_rooms)
-            print(_channel_query)
             channels = db.query(_channel_query).all()
-            print(channels)
             rooms_query = (
                 db.query(RoomsModel).filter(RoomsModel.id == users_rooms).all()
             )
