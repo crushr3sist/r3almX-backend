@@ -8,6 +8,7 @@ from r3almX_backend.auth_service.user_handler_utils import get_db
 from r3almX_backend.auth_service.user_models import User
 from r3almX_backend.chat_service.channel_system.channel_utils import (
     insert_to_channels_table,
+    insert_to_messages_table,
 )
 from r3almX_backend.chat_service.channel_system.main import channel_manager
 from r3almX_backend.chat_service.models.channels_model import ChannelsModel
@@ -33,6 +34,29 @@ async def create_channel(
             channel_description=channel_description,
         )
         return {"message": "Channel created successfully."}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating channel: {str(e)}")
+
+
+@channel_manager.post("/insert", tags=["Channel"])
+async def create_channel(
+    channel_id: str,
+    message: str,
+    room_id: str,
+    user: User = Depends(get_current_user),
+    db=Depends(get_db),
+):
+
+    try:
+        insert_to_messages_table(
+            room_id=room_id,
+            db=db,
+            user=user,
+            message=message,
+            channel_id=channel_id,
+        )
+        return {"message": "message committed."}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating channel: {str(e)}")

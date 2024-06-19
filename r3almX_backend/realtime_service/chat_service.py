@@ -36,11 +36,11 @@ from r3almX_backend.auth_service.user_models import User
 from r3almX_backend.chat_service.channel_system.channel_utils import get_message_model
 from r3almX_backend.database import *
 from r3almX_backend.realtime_service.connection_service import NotificationSystem
+from r3almX_backend.realtime_service.DigestionBroker import DigestionBroker
 from r3almX_backend.realtime_service.main import realtime
 
 # Global variable to store the RabbitMQ connection
 rabbit_connection = None
-
 
 async def get_rabbit_connection():
 
@@ -67,69 +67,14 @@ def get_user_from_token(token: str, db) -> User:
         return j
 
 
-class DigestionBroker:
-    def __init__(self, batch_size=10, flush_interval=5): 
-        self.batch_size = batch_size
-        self.flush_interval = flush_interval
-        self.message_batch = []
-        self.lock = asyncio.Lock()
 
-    async def add_message(self, room_id, user_id, message, db):
-        async with self.lock:
-            msg_id = str(uuid.uuid4())
-            msg_data = {
-                "id": msg_id,
-                "room_id": room_id,
-                "user_id": user_id,
-                "message": message,
-                "timestamp": datetime.utcnow().isoformat()
-            }
-            self.message_batch.append(msg_data)
-            print(f"Added message to batch: {msg_data}")
-
-            if len(self.message_batch) >= self.batch_size:
-                await self.flush_to_db(db)
-
-    async def flush_to_db(self, db):
-        if not self.message_batch:
-            return
-
-        async with self.lock:
-            try:
-                for msg in self.message_batch:
-                    table_name = f"messages_{msg['room_id']}"
-                    table = get_message_model(table_name)
-                    stmt = insert(table).values(
-                        id=msg['id'],
-                        sender=msg['user_id'],
-                        message=msg['message'],
-                        timestamp=msg['timestamp'],
-                    )
-                    db.execute(stmt)
-                db.commit()
-                print(f"Flushed {len(self.message_batch)} messages to DB")
-                self.message_batch.clear()
-            except Exception as e:
-                print(e)
-                db.rollback()
-
-    async def start_flush_scheduler(self, get_db):
-        while True:
-            await asyncio.sleep(self.flush_interval)
-            async with get_db() as db:  # Use dependency function to get the db session
-                await self.flush_to_db(db)
-
-            
-# Get the database dependency function
-async def get_db_session():
-    async with get_db() as db:
-        yield db
-
-# Modified DigestionBroker initialization to include the dependency injection
+                
+# Initialize DigestionBroker and pass db to set_db method
 digestion_broker = DigestionBroker(batch_size=10, flush_interval=5)
 
-# Pass the get_db function to start_flush_scheduler
-asyncio.create_task(digestion_broker.start_flush_scheduler(get_db_session))
+# Pass the get_db function to start_flush_scheduler to set the db session
+asyncio.create_task(digestion_broker.start_flush_scheduler())
+
 
 
 class RoomManager:
@@ -141,33 +86,24 @@ class RoomManager:
         """
         Initialize the RoomManager instance.
         """
-        # Dictionary to store sets of connected WebSockets for each room
         self.rooms: Dict[str, set] = {}
-        # Dictionary to store RabbitMQ queues for each room
         self.rabbit_queues: Dict[str, aio_pika.Queue] = {}
-        # Dictionary to store RabbitMQ channels for each room
         self.rabbit_channels: Dict[str, aio_pika.Channel] = {}
-        # Dictionary to store asynchronous tasks for broadcasting messages to each room
         self.broadcast_tasks: Dict[str, asyncio.Task] = {}
 
     async def broadcast(self, room_id: str):
 
         try:
-            # Get the RabbitMQ queue for the room
             queue = self.rabbit_queues.get(room_id)
             if queue is None:
                 print(f"Queue for room {room_id} is not initialized")
                 return
 
-            # Get the set of connected WebSockets for the room
             room = self.rooms[room_id]
-            # Iterate over messages in the queue
             async with queue.iterator() as queue_iter:
                 async for message in queue_iter:
                     async with message.process():
-                        # Decode the message body and split it into user and data
                         message_received = json.loads(message.body.decode())
-                        # Send the message to each connected WebSocket in the room
                         for websocket in room:
                             await websocket.send_json(
                                 {
@@ -182,29 +118,25 @@ class RoomManager:
                                     "mid": message_received["id"],
                                 }
                             )
-                            # await self.digestion()
                             print(f"Sent message to websocket: {message_received["user"]}: {message_received["message"]}")
 
         except Exception as e:
-            # Print the exception traceback if an error occurs
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            print(f"Error in broadcast task for room {room_id}: {e}")
+            print(f"Error in broadcast task for room {room_id}: {e}\n")
             traceback.print_exception(
                 exc_type, exc_value, exc_traceback, file=sys.stdout
             )
 
-  
-
     async def start_broadcast_task(self, room_id: str):
 
         if room_id not in self.broadcast_tasks:
-            print(f"Starting broadcast task for room {room_id}")
+            print(f"Starting broadcast task for room {room_id}\n")
             self.broadcast_tasks[room_id] = asyncio.create_task(self.broadcast(room_id))
 
     async def stop_broadcast_task(self, room_id: str):
 
         if room_id in self.broadcast_tasks:
-            print(f"Stopping broadcast task for room {room_id}")
+            print(f"Stopping broadcast task for room {room_id}\n")
             task = self.broadcast_tasks.pop(room_id)
             task.cancel()
             try:
@@ -213,43 +145,35 @@ class RoomManager:
                 pass
 
     async def add_message_to_queue(
-        self, room_id: str, message: str, user: str, mid: str, db
+        self, room_id: str, message: str, user: str, mid: str
     ):
 
         channel = self.rabbit_channels.get(room_id)
-        message_data = {"user": str(user), "message": message, "id": mid}
+        message_data = {"user": str(user), "message": message['message'], "id": mid, "cid":message['channel_id']}
         if channel:
             await channel.default_exchange.publish(
                 aio_pika.Message(body=json.dumps(message_data).encode()),
                 routing_key=self.rabbit_queues[room_id].name,
             )
             print(
-                f"Added message to queue {self.rabbit_queues[room_id].name}: {user}:{message}, id:{mid}"
+                f"Added message to queue {self.rabbit_queues[room_id].name}: {user}:{message}, id:{mid}\n"
             )
-            await digestion_broker.add_message(room_id, user, message, db)
+            await digestion_broker.add_message( user,  message)
 
     async def connect_user(self, room_id: str, websocket: WebSocket):
 
-        # Get the set of connected WebSockets for the room
         room = self.rooms.get(room_id)
         if room is None:
-            # If the room doesn't exist, initialize it
             self.rooms[room_id] = set()
-            # Get a RabbitMQ connection
             connection = await get_rabbit_connection()
-            # Create a new RabbitMQ channel
             channel = await connection.channel()
-            # Declare a new RabbitMQ queue for the room
             queue = await channel.declare_queue(room_id, auto_delete=True)
-            # Store the queue and channel in the dictionaries
             self.rabbit_queues[room_id] = queue
             self.rabbit_channels[room_id] = channel
             print(f"Declared queue for room {room_id}")
-            # Start a new broadcast task for the room
             await self.start_broadcast_task(room_id)
-        # Add the WebSocket to the set of connected WebSockets for the room
         self.rooms[room_id].add(websocket)
-        print(f"User connected to room {room_id}")
+        print(f"User connected to room {room_id}\n")
 
     async def disconnect_user(self, room_id: str, websocket: WebSocket):
         room = self.rooms.get(room_id)
@@ -259,20 +183,18 @@ class RoomManager:
                 del self.rooms[room_id]
                 await self.stop_broadcast_task(room_id)
 
-                # Ensure the queue is not in use before deleting it
                 queue = self.rabbit_queues[room_id]
                 try:
-                    await queue.close()  # Ensure the queue is closed
-                    await queue.purge()  # Ensure no pending messages in the queue
-                    await queue.delete()  # Now delete the queue safely
-                    print(f"Queue {room_id} successfully deleted.")
+                    await queue.close()  
+                    await queue.purge()  
+                    await queue.delete() 
+                    print(f"Queue {room_id} successfully deleted.\n")
                 except Exception as e:
-                    print(f"Failed to delete queue {room_id}: {e}")
+                    print(f"Failed to delete queue {room_id}: {e}\n")
 
-                # Remove the queue and channel from the dictionaries
                 del self.rabbit_queues[room_id]
                 del self.rabbit_channels[room_id]
-                print(f"Deleted queue and stopped task for room {room_id}")
+                print(f"Deleted queue and stopped task for room {room_id}\n")
 
     def set_db(self, db):
         self.db = db
@@ -292,12 +214,13 @@ async def websocket_endpoint(
     print("email:", user.email, "}")
 
     room_manager.set_db(db)
+    digestion_broker.set_db(db)
     if user:
         await websocket.accept()
         await room_manager.connect_user(room_id, websocket)
         try:
             while True:
-                data = await websocket.receive_text()
+                data = await websocket.receive_json()
                 mid = str(
                     (
                         lambda length=8: "".join(
@@ -308,7 +231,7 @@ async def websocket_endpoint(
                         )
                     )()
                 )
-                await room_manager.add_message_to_queue(room_id, data, user.id, mid, db)
+                await room_manager.add_message_to_queue(room_id, data, user.id, mid)
 
                 await notification_system.send_notification_to_user(
                     user.id, {"room_id": room_id, "mid": mid}
