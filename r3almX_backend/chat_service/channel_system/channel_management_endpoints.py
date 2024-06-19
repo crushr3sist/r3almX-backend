@@ -23,6 +23,7 @@ async def create_channel(
     user: User = Depends(get_current_user),
     db=Depends(get_db),
 ):
+
     try:
         insert_to_channels_table(
             room_id,

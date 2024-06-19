@@ -3,10 +3,9 @@ import uuid
 
 from sqlalchemy import Column, DateTime, ForeignKey, String, Table
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.event import listen
 from sqlalchemy.orm import relationship
 
-from r3almX_backend.database import Base, engine
+from r3almX_backend.database import Base
 
 
 def create_channel_table(room_id):

@@ -6,6 +6,7 @@ from sqlalchemy.event import listen
 from r3almX_backend.auth_service.auth_utils import get_current_user
 from r3almX_backend.auth_service.user_handler_utils import get_db
 from r3almX_backend.auth_service.user_models import User
+from r3almX_backend.chat_service.channel_system.channel_utils import get_channel_model
 from r3almX_backend.chat_service.models.rooms_model import RoomsModel
 from r3almX_backend.chat_service.models.rooms_table import (
     create_channel_table,
@@ -71,14 +72,18 @@ async def fetch_rooms(user: User = Depends(get_current_user), db=Depends(get_db)
     rooms = []
     try:
         for users_rooms in set(user.rooms_joined):
+            _channel_query = get_channel_model(users_rooms)
+            print(_channel_query)
+            channels = db.query(_channel_query).all()
+            print(channels)
             rooms_query = (
                 db.query(RoomsModel).filter(RoomsModel.id == users_rooms).all()
             )
             rooms.append(rooms_query)
     except Exception as e:
-        return {"status": 400, "rooms": "User is not in any rooms"}
+        return {"status": 400, "error": str(e)}
 
-    return {"status": 200, "rooms": rooms[0]}
+    return {"status": 200, "rooms": rooms[0], "channels": channels}
 
 
 @rooms_service.put("/edit", tags=["Room"])

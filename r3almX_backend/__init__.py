@@ -49,7 +49,7 @@ class RealmX(FastAPI):
 
     def add_models(self):
         from r3almX_backend.auth_service import user_models
-        from r3almX_backend.chat_service.models import channels_model, rooms_model
+        from r3almX_backend.chat_service.models import rooms_model
         from r3almX_backend.database import engine
 
         # rooms_model.Base.metadata.drop_all(bind=engine)
