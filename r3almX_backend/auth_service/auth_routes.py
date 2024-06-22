@@ -43,24 +43,6 @@ def create_user(
         return {"status_code": 400, "detail": str(e)}
 
 
-@auth_router.post("/online", tags=["Auth"])
-def go_online(
-    user_id: str,
-    db=Depends(user_handler_utils.get_db),
-):
-    user_handler_utils.set_user_online(db, user_id)
-    return {"status": 200, "user is online": user_id}
-
-
-@auth_router.post("/offline", tags=["Auth"])
-def go_offline(
-    user_id: str,
-    db=Depends(user_handler_utils.get_db),
-):
-    user_handler_utils.set_user_offline(db, user_id)
-    return {"status": 200, "user is offline": user_id}
-
-
 @auth_router.post("/token", tags=["Auth"])
 def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
@@ -88,25 +70,17 @@ def login_for_access_token(
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@auth_router.post("/token/check", tags=["Auth"])
+@auth_router.get("/token/check", tags=["Auth"])
 def verify_token(token: str):
     try:
         token_data = jwt.decode(
             token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
         )
 
-        sub = token_data.get("sub")
-        expiration_time = datetime.fromtimestamp(token_data["exp"])
+    except JWTError as j:
+        return {"status": 401, "is_user_logged_in": False}
 
-        if expiration_time >= datetime.now():
-            return {"token": f"expired: {expiration_time}", "sub": sub, "status": 401}
-
-    except JWTError:
-        raise HTTPException(
-            status_code=401, detail="Invalid authentication credentials"
-        )
-
-    return {"status": "checked"}
+    return {"status": "200", "is_user_logged_in": True}
 
 
 @auth_router.post("/token/refresh", tags=["Auth"])
