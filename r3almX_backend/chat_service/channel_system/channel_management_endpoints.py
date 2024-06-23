@@ -1,12 +1,8 @@
 import datetime
 import uuid
-from typing import List
 
 from fastapi import Depends, HTTPException, Query
-from fastapi_pagination import Page, add_pagination
-from fastapi_pagination.ext.sqlalchemy import paginate
 from pydantic import BaseModel
-from sqlalchemy import Table, insert, select
 
 from r3almX_backend.auth_service.auth_utils import get_current_user
 from r3almX_backend.auth_service.user_handler_utils import get_db
@@ -100,9 +96,9 @@ async def fetch_messages(
 ) -> list[MessageModel]:
 
     message_table = get_message_model(room_id)
-    message_query = db.query(
-        message_table
-    ).all()  # replace this query with the redis cache instead
+    message_query = (
+        db.query(message_table).filter(message_table.channel_id == channel_id).all()
+    )  # replace this query with the redis cache instead
     start = (page - 1) * page_size
     end = start + page_size
     return message_query[start:end]
