@@ -1,12 +1,19 @@
+import datetime
 import uuid
+from typing import List
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Query
+from fastapi_pagination import Page, add_pagination
+from fastapi_pagination.ext.sqlalchemy import paginate
+from pydantic import BaseModel
 from sqlalchemy import Table, insert, select
 
 from r3almX_backend.auth_service.auth_utils import get_current_user
 from r3almX_backend.auth_service.user_handler_utils import get_db
 from r3almX_backend.auth_service.user_models import User
 from r3almX_backend.chat_service.channel_system.channel_utils import (
+    get_channel_model,
+    get_message_model,
     insert_to_channels_table,
     insert_to_messages_table,
 )
@@ -39,7 +46,19 @@ async def create_channel(
         raise HTTPException(status_code=500, detail=f"Error creating channel: {str(e)}")
 
 
-@channel_manager.post("/insert", tags=["Channel"])
+@channel_manager.get("/fetch", tags=["Channel"])
+async def fetch_channels(
+    room_id: str, user: User = Depends(get_current_user), db=Depends(get_db)
+):
+    try:
+        _channel_query = get_channel_model(room_id)
+        channels = db.query(_channel_query).all()
+        return {"status": 200, "channels": channels}
+    except Exception as e:
+        return {"status": 401, "exception": HTTPException(401, e)}
+
+
+@channel_manager.post("/message/insert", tags=["Channel"])
 async def create_channel(
     channel_id: str,
     message: str,
@@ -62,16 +81,31 @@ async def create_channel(
         raise HTTPException(status_code=500, detail=f"Error creating channel: {str(e)}")
 
 
-@channel_manager.post("/quick_digest", tags=["Channel"])
-async def quick_digest(
-    room_name: str, user: User = Depends(get_current_user), db=Depends(get_db)
-): ...
+class MessageModel(BaseModel):
+    id: uuid.UUID
+    channel_id: uuid.UUID
+    sender_id: uuid.UUID
+    message: str
+    timestamp: datetime.datetime
 
 
-@channel_manager.post("/mass_digest", tags=["Channel"])
-async def mass_digest(
-    room_name: str, user: User = Depends(get_current_user), db=Depends(get_db)
-): ...
+@channel_manager.get("/message/fetch", tags=["Channel"])
+async def fetch_messages(
+    channel_id: str,
+    room_id: str,
+    db=Depends(get_db),
+    user: User = Depends(get_current_user),
+    page: int = Query(1),
+    page_size: int = Query(20),
+) -> list[MessageModel]:
+
+    message_table = get_message_model(room_id)
+    message_query = db.query(
+        message_table
+    ).all()  # replace this query with the redis cache instead
+    start = (page - 1) * page_size
+    end = start + page_size
+    return message_query[start:end]
 
 
 @channel_manager.post("/edit", tags=["Channel"])

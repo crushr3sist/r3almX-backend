@@ -11,6 +11,7 @@ from typing import Dict
 
 # aio_pika is a library for working with RabbitMQ message queues
 import aio_pika
+import redis
 
 # Imports from FastAPI for handling WebSockets and dependency injection
 from fastapi import Depends, WebSocket, WebSocketDisconnect
@@ -90,7 +91,9 @@ class RoomManager:
         self.rabbit_queues: Dict[str, aio_pika.Queue] = {}
         self.rabbit_channels: Dict[str, aio_pika.Channel] = {}
         self.broadcast_tasks: Dict[str, asyncio.Task] = {}
-
+        self.redis_client = self.redis_client = redis.Redis().from_url(
+            url="redis://172.22.96.1:6379", decode_responses=True, db=1
+        )
     async def broadcast(self, room_id: str):
 
         try:
@@ -119,8 +122,9 @@ class RoomManager:
                                 }
                             )
                             print(f"Sent message to websocket: {message_received["user"]}: {message_received["message"]}")
+                await digestion_broker.add_message( message_received['user'],  message_received)
 
-        except Exception as e:
+        except Exception as e:  
             exc_type, exc_value, exc_traceback = sys.exc_info()
             print(f"Error in broadcast task for room {room_id}: {e}\n")
             traceback.print_exception(
@@ -147,9 +151,11 @@ class RoomManager:
     async def add_message_to_queue(
         self, room_id: str, message: str, user: str, mid: str
     ):
-
         channel = self.rabbit_channels.get(room_id)
-        message_data = {"user": str(user), "message": message['message'], "id": mid, "cid":message['channel_id']}
+        message_data = {"user": str(user), 
+                        "message": message['message'], 
+                        "id": mid, 
+                        "cid":message['channel_id']}
         if channel:
             await channel.default_exchange.publish(
                 aio_pika.Message(body=json.dumps(message_data).encode()),
@@ -158,7 +164,10 @@ class RoomManager:
             print(
                 f"Added message to queue {self.rabbit_queues[room_id].name}: {user}:{message}, id:{mid}\n"
             )
-            await digestion_broker.add_message( user,  message)
+            cache_key = f"room:{room_id}:messages"
+            self.redis_client.lpush(cache_key, json.dumps(message_data))
+            self.redis_client.ltrim(cache_key, 0, 99)
+    
 
     async def connect_user(self, room_id: str, websocket: WebSocket):
 
@@ -202,16 +211,18 @@ class RoomManager:
 
 room_manager = RoomManager()
 notification_system = NotificationSystem()
-
+async def get_messages(room_id: str):
+        cached_messages = await room_manager.fetch_cached_messages(room_id)
+        if cached_messages:
+            return cached_messages
+        else:
+            pass
 
 @realtime.websocket("/message/{room_id}")
 async def websocket_endpoint(
     websocket: WebSocket, room_id: str, token: str, db=Depends(get_db)
 ):
     user = get_user_from_token(token, db)
-    print("{username:", user.username, ",")
-    print("id:", user.id, ",")
-    print("email:", user.email, "}")
 
     room_manager.set_db(db)
     digestion_broker.set_db(db)
