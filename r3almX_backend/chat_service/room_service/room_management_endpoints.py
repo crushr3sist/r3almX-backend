@@ -25,12 +25,7 @@ async def create_room(
     room_name: str, user: User = Depends(get_current_user), db=Depends(get_db)
 ):
     new_room = RoomsModel(user.id, room_name)
-
-    (
-        db.query(RoomsModel)
-        .filter(RoomsModel.room_owner == user.id)
-        .update({RoomsModel.members: new_room.members + [user.id]})
-    )
+    new_room.members = [user.id]  # Initialize members with just the creator
 
     db.add(new_room)
     db.commit()
@@ -42,13 +37,8 @@ async def create_room(
     channel_table.create(engine, checkfirst=True)
     message_table.create(engine, checkfirst=True)
 
-    (
-        db.query(User)
-        .filter(User.id == user.id)
-        .update({User.rooms_joined: user.rooms_joined + [new_room.id]})
-    )
-
-    db.add(user)
+    # Update the user's rooms_joined
+    user.rooms_joined = user.rooms_joined + [new_room.id]
     db.commit()
 
     return {"status": 200, "rooms": new_room, "user": user}
@@ -75,10 +65,11 @@ async def fetch_rooms(user: User = Depends(get_current_user), db=Depends(get_db)
             rooms_query = (
                 db.query(RoomsModel).filter(RoomsModel.id == users_rooms).all()
             )
-            rooms.append(rooms_query)
+            rooms.append(rooms_query[0])
+
     except Exception as e:
         return {"status": 400, "error": str(e)}
-    return {"status": 200, "rooms": rooms[0]}
+    return {"status": 200, "rooms": rooms}
 
 
 @rooms_service.put("/edit", tags=["Room"])

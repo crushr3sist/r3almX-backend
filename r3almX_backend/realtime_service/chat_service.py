@@ -122,7 +122,7 @@ class RoomManager:
                                 }
                             )
                             print(f"Sent message to websocket: {message_received["user"]}: {message_received["message"]}")
-                await digestion_broker.add_message( message_received['user'],  message_received)
+                        await digestion_broker.add_message( message_received['user'],  message_received)
 
         except Exception as e:  
             exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -149,13 +149,14 @@ class RoomManager:
                 pass
 
     async def add_message_to_queue(
-        self, room_id: str, message: str, user: str, mid: str
+        self, room_id: str, message, user: str, mid: str
     ):
         channel = self.rabbit_channels.get(room_id)
         message_data = {"user": str(user), 
+                        "room_id": room_id,
                         "message": message['message'], 
                         "id": mid, 
-                        "cid":message['channel_id']}
+                        "channel_id":message['channel_id']}
         if channel:
             await channel.default_exchange.publish(
                 aio_pika.Message(body=json.dumps(message_data).encode()),
@@ -164,11 +165,11 @@ class RoomManager:
             print(
                 f"Added message to queue {self.rabbit_queues[room_id].name}: {user}:{message}, id:{mid}\n"
             )
-            cache_key = f"room:{room_id}:messages"
+            cache_key=f"room:{room_id}:channel:{message['channel_id']}:messages"
+            
             self.redis_client.lpush(cache_key, json.dumps(message_data))
             self.redis_client.ltrim(cache_key, 0, 99)
-    
-
+            
     async def connect_user(self, room_id: str, websocket: WebSocket):
 
         room = self.rooms.get(room_id)
@@ -183,6 +184,11 @@ class RoomManager:
             await self.start_broadcast_task(room_id)
         self.rooms[room_id].add(websocket)
         print(f"User connected to room {room_id}\n")
+        
+    async def fetch_cached_messages(self, room_id: str, channel_id: str):
+        cache_key = f"room:{room_id}:channel:{channel_id}:messages"
+        cached_messages = self.redis_client.lrange(cache_key, 0, -1)
+        return [json.loads(msg) for msg in cached_messages]
 
     async def disconnect_user(self, room_id: str, websocket: WebSocket):
         room = self.rooms.get(room_id)
@@ -211,8 +217,9 @@ class RoomManager:
 
 room_manager = RoomManager()
 notification_system = NotificationSystem()
-async def get_messages(room_id: str):
-        cached_messages = await room_manager.fetch_cached_messages(room_id)
+
+async def get_messages(room_id: str, channel_id: str):
+        cached_messages = await room_manager.fetch_cached_messages(room_id, channel_id)
         if cached_messages:
             return cached_messages
         else:
@@ -245,7 +252,7 @@ async def websocket_endpoint(
                 await room_manager.add_message_to_queue(room_id, data, user.id, mid)
 
                 await notification_system.send_notification_to_user(
-                    user.id, {"room_id": room_id, "mid": mid}
+                    user.id, {"room_id": room_id, "channel_id": data['channel_id'], "mid": mid}
                 )
         except WebSocketDisconnect:
             await room_manager.disconnect_user(room_id, websocket)

@@ -24,6 +24,7 @@ class DigestionBroker:
         try:
             async with self.lock:
                 msg_id = str(uuid.uuid4())
+                print("add message: ", message, "\n")
                 msg_data = {
                     "id": msg_id,
                     "channel_id": message["channel_id"],

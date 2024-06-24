@@ -86,7 +86,7 @@ class MessageModel(BaseModel):
 
 
 @channel_manager.get("/message/fetch", tags=["Channel"])
-async def fetch_messages(
+async def fetch_messages_endpoint(
     channel_id: str,
     room_id: str,
     db=Depends(get_db),
@@ -95,6 +95,16 @@ async def fetch_messages(
     page_size: int = Query(20),
 ) -> list[MessageModel]:
 
+    message_table = get_message_model(room_id)
+    message_query = (
+        db.query(message_table).filter(message_table.channel_id == channel_id).all()
+    )  # replace this query with the redis cache instead
+    start = (page - 1) * page_size
+    end = start + page_size
+    return message_query[start:end]
+
+
+def fetch_messages(channel_id, room_id, db, page=1, page_size=20):
     message_table = get_message_model(room_id)
     message_query = (
         db.query(message_table).filter(message_table.channel_id == channel_id).all()
