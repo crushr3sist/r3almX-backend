@@ -18,6 +18,28 @@ class DigestionBroker:
         self.db = None  # Initialize db as None initially
         self.flush_task = None  # Initialize flush task as None
 
+    async def delete_message(self, message_id):
+        if self.db is None:
+            raise ValueError("Database session (db) is not set. Call set_db(db) first.")
+        try:
+            async with self.lock:
+                table_name = None
+                for msg in self.message_batch:
+                    if msg["id"] == message_id:
+                        table_name = msg["room_id"]
+                        self.message_batch.remove(msg)
+                        break
+                if table_name is not None:
+                    table = get_message_model(table_name)
+                    stmt = table.delete().where(table.c.id == message_id)
+                    self.db.execute(stmt)
+                    self.db.commit()
+                    print(f"Deleted message with id {message_id} from batch and DB\n")
+                else:
+                    print(f"Message with id {message_id} not found in batch\n")
+        except Exception as e:
+            print(f"Exception occurred in delete_message: {e}")
+
     async def add_message(self, user_id, message):
         if self.db is None:
             raise ValueError("Database session (db) is not set. Call set_db(db) first.")

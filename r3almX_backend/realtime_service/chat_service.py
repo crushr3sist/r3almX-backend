@@ -24,7 +24,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
 # Imports from the project's auth_service module
-from r3almX_backend.auth_service.auth_utils import TokenData
+from r3almX_backend.auth_service.auth_utils import TokenData, get_current_user
 from r3almX_backend.auth_service.Config import UsersConfig
 from r3almX_backend.auth_service.user_handler_utils import (
     get_db,
@@ -152,11 +152,16 @@ class RoomManager:
         self, room_id: str, message, user: str, mid: str
     ):
         channel = self.rabbit_channels.get(room_id)
-        message_data = {"user": str(user), 
+        message_data = {
+            "user": str(user),
+                        "username": get_user(
+                                        self.db, str(user)
+                                    ).username,
                         "room_id": room_id,
                         "message": message['message'], 
                         "id": mid, 
-                        "channel_id":message['channel_id']}
+                        "channel_id":message['channel_id']
+        }
         if channel:
             await channel.default_exchange.publish(
                 aio_pika.Message(body=json.dumps(message_data).encode()),
@@ -219,12 +224,21 @@ room_manager = RoomManager()
 notification_system = NotificationSystem()
 
 async def get_messages(room_id: str, channel_id: str):
-        cached_messages = await room_manager.fetch_cached_messages(room_id, channel_id)
-        if cached_messages:
-            return cached_messages
-        else:
-            pass
-
+    cached_messages = await room_manager.fetch_cached_messages(room_id, channel_id)
+    if cached_messages:
+        return cached_messages
+    else:
+        pass
+    
+@realtime.get("/message/channel/cache", tags=["Channel"])
+async def get_all_connections(
+    room_id: str, channel_id: str, user: User = Depends(get_current_user),
+    db=Depends(get_db)
+):
+    cached_messages = await get_messages(room_id, channel_id)
+    print(cached_messages)
+    return cached_messages
+    
 @realtime.websocket("/message/{room_id}")
 async def websocket_endpoint(
     websocket: WebSocket, room_id: str, token: str, db=Depends(get_db)
@@ -261,22 +275,4 @@ async def websocket_endpoint(
 
 
 
-@realtime.get("/message/rooms/")
-async def get_all_connections():
-    data = {}
-    for room_id, room in room_manager.rooms.items():
-        queue_size = 0
-        if room_id in room_manager.rabbit_queues:
-            queue = room_manager.rabbit_queues[room_id]
-            channel = room_manager.rabbit_channels[room_id]
-            queue_state = await channel.declare_queue(
-                room_id, passive=True, durable=True, auto_delete=True
-            )
-            queue_size = queue_state.message_count
-        users = [str(websocket) for websocket in room]
-        data[room_id] = {
-            "queue_size": queue_size,
-            "users_connected": len(users),
-            "users": users,
-        }
-    return data
+
