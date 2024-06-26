@@ -205,7 +205,6 @@ class RoomManager:
 
                 queue = self.rabbit_queues[room_id]
                 try:
-                    await queue.close()  
                     await queue.purge()  
                     await queue.delete() 
                     print(f"Queue {room_id} successfully deleted.\n")
@@ -236,7 +235,6 @@ async def get_all_connections(
     db=Depends(get_db)
 ):
     cached_messages = await get_messages(room_id, channel_id)
-    print(cached_messages)
     return cached_messages
     
 @realtime.websocket("/message/{room_id}")
