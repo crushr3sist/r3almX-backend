@@ -27,6 +27,7 @@ class User(Base):
     username: str = Column(String, unique=True, index=True)
     hashed_password: str = Column(String)
     google_id = Column(String, unique=True, nullable=True)
+    profile_pic = Column(String, unique=True, nullable=True)
 
     is_active: bool = Column(Boolean, default=True)
     rooms_joined: list = Column(ARRAY(String), default=[])

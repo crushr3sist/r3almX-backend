@@ -62,13 +62,18 @@ def set_user_offline(db, user_id: str):
 def create_user(db: Session, user: user_schemas.UserCreate):
     email: str = check_email(user.email)
     hashed_password: str = hash_password(user.password)
+
     if get_user_by_username(db, user.username):
         raise HTTPException(
             status_code=400, detail="User with this username already exists"
         )
 
     db_user = user_models.User(
-        email=email, hashed_password=hashed_password, username=user.username
+        email=email,
+        hashed_password=hashed_password,
+        username=user.username,
+        google_id=user.google_id,
+        profile_pic=user.profile_pic,
     )
     db.add(db_user)
     db.commit()

@@ -40,6 +40,8 @@ async def auth_google_callback(request: Request, db=Depends(user_handler_utils.g
         google_user_info = google_id_token.verify_oauth2_token(
             code, google_requests.Request(), UsersConfig.GOOGLE_CLIENT_ID
         )
+        print(google_user_info)
+
         email = google_user_info.get("email")
         print(email)
 
@@ -54,6 +56,8 @@ async def auth_google_callback(request: Request, db=Depends(user_handler_utils.g
                     username=email,
                     email=email,
                     password=secrets.token_urlsafe(32),
+                    google_id=google_user_info.get("sub"),
+                    profile_pic=google_user_info.get("picture"),
                 ),
             )
             # Create a new access token for the user

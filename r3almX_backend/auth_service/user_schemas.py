@@ -1,4 +1,5 @@
 from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -9,6 +10,8 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str
     username: str
+    google_id: str
+    profile_pic: str
 
 
 class User(UserBase):
