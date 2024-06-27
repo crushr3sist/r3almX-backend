@@ -1,15 +1,17 @@
 from datetime import datetime, timedelta
-from typing import Literal
+from typing import Literal, Optional
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from google.auth.transport import requests
+from google.oauth2 import id_token
 from jose import JWTError, jwt
 from pydantic import BaseModel
-from typing import Optional
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
-from r3almX_backend.auth_service.Config import UsersConfig
+
 from r3almX_backend.auth_service import user_handler_utils
-from .user_handler_utils import get_user_by_username
+from r3almX_backend.auth_service.Config import UsersConfig
+
+from .user_handler_utils import get_db, get_user_by_username, verify_password
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
@@ -41,7 +43,7 @@ def create_access_token(
 ) -> str:
     data_to_encode = data.copy()
     if expire_delta:
-        expire = datetime.utcnow() + expire_delta
+        expire = datetime.now() + timedelta(seconds=expire_delta)
         data_to_encode.update({"exp": expire})
     return jwt.encode(
         data_to_encode, UsersConfig.SECRET_KEY, algorithm=UsersConfig.ALGORITHM
@@ -49,18 +51,23 @@ def create_access_token(
 
 
 def authenticate_user(
-    username: str,
-    password: str,
-    db: user_handler_utils.Session = Depends(user_handler_utils.get_db),
+    username: str, password: str, google_token: str = None, db=Depends(get_db)
 ):
-    if user := get_user_by_username(db, username=username):
-        return (
-            user
-            if user_handler_utils.verify_password(password, user.hashed_password)
-            else False
-        )
-    else:
+    user = get_user_by_username(db, username=username)
+    if not user:
         return False
+    if google_token:
+        try:
+            google_user = id_token.verify_oauth2_token(
+                google_token, requests.Request(), UsersConfig.GOOGLE_CLIENT_ID
+            )
+            if user.google_id == google_user["sub"]:
+                return user
+        except ValueError:
+            return False
+    elif password and verify_password(password, user.hashed_password):
+        return user
+    return False
 
 
 async def get_current_user(

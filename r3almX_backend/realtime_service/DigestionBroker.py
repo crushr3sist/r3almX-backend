@@ -40,6 +40,18 @@ class DigestionBroker:
         except Exception as e:
             print(f"Exception occurred in delete_message: {e}")
 
+    def parse_timestamp(self, timestamp_str: str) -> datetime:
+        # Define the format based on the JavaScript format: "YYYY-MM-DD HH:MM:SS AM/PM"
+        format_str = "%Y-%m-%d %I:%M:%S %p"
+
+        # Parse the timestamp string into a datetime object
+        try:
+            parsed_datetime = datetime.strptime(timestamp_str, format_str)
+            return parsed_datetime
+        except ValueError as e:
+            print(f"Error parsing timestamp: {e}")
+            return None
+
     async def add_message(self, user_id, message):
         if self.db is None:
             raise ValueError("Database session (db) is not set. Call set_db(db) first.")
@@ -53,7 +65,7 @@ class DigestionBroker:
                     "sender_id": user_id,
                     "message": message["message"],
                     "room_id": message["room_id"],
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": self.parse_timestamp(message["timestamp"]),
                 }
                 self.message_batch.append(msg_data)
                 print(f"Added message to batch: {msg_data}\n")

@@ -23,6 +23,14 @@ def get_user_by_username(db: Session, username: str):
     return False
 
 
+def get_user_by_email(db: Session, email: str):
+    if check_records := (
+        db.query(user_models.User).filter(user_models.User.email == email).first()
+    ):
+        return check_records
+    return False
+
+
 def hash_password(password):
     return password_context.hash(password)
 

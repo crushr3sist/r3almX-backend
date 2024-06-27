@@ -115,9 +115,7 @@ class RoomManager:
                                         self.db, message_received["user"]
                                     ).username,
                                     "uid": message_received["user"],
-                                    "time_stamp": datetime.now().strftime(
-                                        "%Y-%m-%d %I:%M:%S %p"
-                                    ),
+                                    "time_stamp": message_received["timestamp"] ,
                                     "mid": message_received["id"],
                                 }
                             )
@@ -160,7 +158,8 @@ class RoomManager:
                         "room_id": room_id,
                         "message": message['message'], 
                         "id": mid, 
-                        "channel_id":message['channel_id']
+                        "channel_id":message['channel_id'],
+                        "timestamp": message["timestamp"]
         }
         if channel:
             await channel.default_exchange.publish(

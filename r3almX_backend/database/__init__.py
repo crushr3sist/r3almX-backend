@@ -18,5 +18,4 @@ engine = create_engine(
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 metadata_obj = MetaData()
-
 Base = declarative_base()

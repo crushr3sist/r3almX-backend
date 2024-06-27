@@ -9,3 +9,8 @@ class UsersConfig(object):
     )
     ALGORITHM: Final = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: Final = 30
+    GOOGLE_CLIENT_ID = (
+        "1033716509262-h52etdps8cab2p2ab7gfh8li40u8opsa.apps.googleusercontent.com"
+    )
+    GOOGLE_CLIENT_SECRET = "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"
+    GOOGLE_REDIRECT_URI = "http://localhost:8000/auth/google/callback"
