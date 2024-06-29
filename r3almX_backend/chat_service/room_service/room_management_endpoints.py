@@ -25,7 +25,7 @@ async def create_room(
     room_name: str, user: User = Depends(get_current_user), db=Depends(get_db)
 ):
     new_room = RoomsModel(user.id, room_name)
-    new_room.members = [user.id]  # Initialize members with just the creator
+    new_room.members = [user.id]
 
     db.add(new_room)
     db.commit()
@@ -97,6 +97,7 @@ async def edit_room(
 async def create_room(
     room_id: str, user: User = Depends(get_current_user), db=Depends(get_db)
 ):
+
     room_to_delete = (
         db.query(RoomsModel)
         .filter(RoomsModel.room_owner == user.id)

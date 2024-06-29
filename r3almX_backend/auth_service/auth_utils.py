@@ -12,13 +12,18 @@ from pydantic import BaseModel
 from r3almX_backend.auth_service import user_handler_utils
 from r3almX_backend.auth_service.Config import UsersConfig
 
-from .user_handler_utils import get_db, get_user_by_username, verify_password
+from .user_handler_utils import (
+    get_db,
+    get_user_by_email,
+    get_user_by_username,
+    verify_password,
+)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 
 class TokenData(BaseModel):
-    username: str | None = None
+    email: str | None = None
 
 
 class Token(BaseModel):
@@ -70,13 +75,13 @@ async def get_current_user(
         payload = jwt.decode(
             token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
         )
-        username: str = payload.get("sub")
-        if username is None:
+        email: str = payload.get("sub")
+        if email is None:
             raise credentials_exception
-        token_data = TokenData(username=username)
+        token_data = TokenData(email=email)
     except JWTError as e:
         raise credentials_exception from e
-    user = get_user_by_username(db, username=token_data.username)
+    user = get_user_by_email(db, email=token_data.email)
     if user is None:
         raise credentials_exception
     return user

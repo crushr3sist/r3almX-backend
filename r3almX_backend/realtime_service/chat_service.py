@@ -29,6 +29,7 @@ from r3almX_backend.auth_service.Config import UsersConfig
 from r3almX_backend.auth_service.user_handler_utils import (
     get_db,
     get_user,
+    get_user_by_email,
     get_user_by_username,
 )
 from r3almX_backend.auth_service.user_models import User
@@ -60,14 +61,11 @@ def get_user_from_token(token: str, db) -> User:
         payload = jwt.decode(
             token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
         )
-        username: str = payload.get("sub")
-        token_data = TokenData(username=username)
-        user = get_user_by_username(db, username=token_data.username)
+        email: str = payload.get("sub")
+        user = get_user_by_email(db, username=email)
         return user
     except JWTError as j:
         return j
-
-
 
                 
 # Initialize DigestionBroker and pass db to set_db method
