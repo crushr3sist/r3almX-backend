@@ -1,3 +1,4 @@
+from calendar import week
 from datetime import datetime, timedelta
 from typing import Literal, Optional
 
@@ -27,24 +28,10 @@ class Token(BaseModel):
 
 def create_access_token(
     data: dict,
-    expire_delta: Optional[timedelta] = UsersConfig.ACCESS_TOKEN_EXPIRE_MINUTES,
 ) -> str:
     data_to_encode = data.copy()
-    if expire_delta:
-        expire = datetime.utcnow() + expire_delta
-        data_to_encode.update({"exp": expire})
-    return jwt.encode(
-        data_to_encode, UsersConfig.SECRET_KEY, algorithm=UsersConfig.ALGORITHM
-    )
-
-
-def create_access_token(
-    data: dict, expire_delta: Optional[int] = UsersConfig.ACCESS_TOKEN_EXPIRE_MINUTES
-) -> str:
-    data_to_encode = data.copy()
-    if expire_delta:
-        expire = datetime.now() + timedelta(seconds=expire_delta)
-        data_to_encode.update({"exp": expire})
+    expire = datetime.now() + timedelta(weeks=2)
+    data_to_encode.update({"exp": expire})
     return jwt.encode(
         data_to_encode, UsersConfig.SECRET_KEY, algorithm=UsersConfig.ALGORITHM
     )
