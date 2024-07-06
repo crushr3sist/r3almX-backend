@@ -62,7 +62,7 @@ def get_user_from_token(token: str, db) -> User:
             token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
         )
         email: str = payload.get("sub")
-        user = get_user_by_email(db, username=email)
+        user = get_user_by_email(db, email=email)
         return user
     except JWTError as j:
         return j
@@ -258,11 +258,12 @@ async def websocket_endpoint(
                         )
                     )()
                 )
+                
                 await room_manager.add_message_to_queue(room_id, data, user.id, mid)
-
                 await notification_system.send_notification_to_user(
                     user.id, {"room_id": room_id, "channel_id": data['channel_id'], "mid": mid}
                 )
+                
         except WebSocketDisconnect:
             await room_manager.disconnect_user(room_id, websocket)
     else:

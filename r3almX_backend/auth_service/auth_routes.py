@@ -85,13 +85,9 @@ def assign_username(
     payload = jwt.decode(
         token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
     )
-
     email: str = payload.get("sub")
-    print(email)
     user_inst = user_handler_utils.get_user_by_email(db, email)
-    print(user_inst.id)
     user_inst.username = str(username)
-
     access_token = create_access_token(
         data={"sub": user_inst.email},
     )
