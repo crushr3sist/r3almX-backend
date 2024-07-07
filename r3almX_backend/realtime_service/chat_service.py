@@ -194,15 +194,16 @@ class RoomManager:
 
     async def disconnect_user(self, room_id: str, websocket: WebSocket):
         room = self.rooms.get(room_id)
+        print("user is being disconnected")
         if room:
             room.remove(websocket)
+            
             if not room:
+                
                 del self.rooms[room_id]
                 await self.stop_broadcast_task(room_id)
-
                 queue = self.rabbit_queues[room_id]
                 try:
-                    await queue.purge()  
                     await queue.delete() 
                     print(f"Queue {room_id} successfully deleted.\n")
                 except Exception as e:
@@ -239,7 +240,7 @@ async def websocket_endpoint(
     websocket: WebSocket, room_id: str, token: str, db=Depends(get_db)
 ):
     user = get_user_from_token(token, db)
-
+    print(user)
     room_manager.set_db(db)
     digestion_broker.set_db(db)
     if user:

@@ -108,7 +108,11 @@ def verify_token(token: str, db=Depends(user_handler_utils.get_db)):
         if user:
             return {
                 "status": 200,
-                "user": {"username": user.username, "email": user.email},
+                "user": {
+                    "username": user.username,
+                    "email": user.email,
+                    "pic": user.profile_pic,
+                },
             }
         return {"status": 401, "is_user_logged_in": False}
 

@@ -88,18 +88,21 @@ class DigestionBroker:
         async with self.lock:
             try:
                 for msg in self.message_batch:
-                    print(f"\n\n\n{msg}\n\n\n")
-                    table_name = f"{msg['room_id']}"
-                    table = get_message_model(table_name)
-                    stmt = insert(table).values(
-                        id=msg["id"],
-                        sender_id=msg["sender_id"],
-                        channel_id=msg["channel_id"],
-                        message=msg["message"],
-                        timestamp=msg["timestamp"],
-                    )
-                    print(f"Executing statement: {stmt}")
-                    self.db.execute(stmt)
+                    try:
+                        print(f"\n\n\n{msg}\n\n\n")
+                        table_name = f"{msg['room_id']}"
+                        table = get_message_model(table_name)
+                        stmt = insert(table).values(
+                            id=msg["id"],
+                            sender_id=msg["sender_id"],
+                            channel_id=msg["channel_id"],
+                            message=msg["message"],
+                            timestamp=msg["timestamp"],
+                        )
+                        print(f"Executing statement: {stmt}")
+                        self.db.execute(stmt)
+                    except Exception as e:
+                        pass
                 self.db.commit()
                 print(f"Flushed {len(self.message_batch)} messages to DB\n")
                 self.message_batch.clear()
