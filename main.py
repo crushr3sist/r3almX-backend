@@ -13,7 +13,7 @@ def ip_addy():
         .split("IPv4 Address. . . . . . . . . . . : ")[2]
         .split("Subnet Mask")[0]
     )
-    return f"\nserver runniyng on : https://{ip.strip()}:8000\n"
+    return f"\nserver running on : https://{ip.strip()}:8000\n"
 
 
 if __name__ == "__main__":
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "r3almX_backend:r3almX",
         host="0.0.0.0",
-        port=8000,
+        port=80,
         reload=True,
         use_colors=True,
         log_level="info",
