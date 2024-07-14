@@ -84,14 +84,6 @@ def insert_to_channels_table(room_id, db, user, channel_name, channel_descriptio
     return channel_id
 
 
-def delete_channel(room_id):
-    try:
-        table = get_channel_model(room_id)
-        table.__table__.drop()
-    except Exception as e:
-        return e
-
-
 def insert_to_messages_table(room_id, db, channel_id, user, message: str):
     table = get_message_model(room_id)
 
