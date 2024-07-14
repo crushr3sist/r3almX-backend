@@ -27,7 +27,6 @@ async def create_channel(
     user: User = Depends(get_current_user),
     db=Depends(get_db),
 ):
-
     try:
         insert_to_channels_table(
             room_id,
@@ -62,7 +61,6 @@ async def create_channel(
     user: User = Depends(get_current_user),
     db=Depends(get_db),
 ):
-
     try:
         insert_to_messages_table(
             room_id=room_id,
@@ -94,7 +92,6 @@ async def fetch_messages_endpoint(
     page: int = Query(1),
     page_size: int = Query(20),
 ) -> list[MessageModel]:
-
     message_table = get_message_model(room_id)
     message_query = (
         db.query(message_table).filter(message_table.channel_id == channel_id).all()
@@ -117,10 +114,45 @@ def fetch_messages(channel_id, room_id, db, page=1, page_size=20):
 @channel_manager.post("/edit", tags=["Channel"])
 async def edit_channel(
     room_name: str, user: User = Depends(get_current_user), db=Depends(get_db)
-): ...
+):
+    ...
 
 
-@channel_manager.post("/delete", tags=["Channel"])
+@channel_manager.delete("/delete", tags=["Channel"])
 async def delete_channel(
-    room_name: str, user: User = Depends(get_current_user), db=Depends(get_db)
-): ...
+    channel_id, room_id, user: User = Depends(get_current_user), db=Depends(get_db)
+):
+    transaction = db.begin()
+    try:
+        # Get the models for channel and message based on room_id
+        channel_query = get_channel_model(room_id)
+        message_table = get_message_model(room_id)
+
+        # Delete all messages associated with the channel
+        db.query(message_table).filter(message_table.channel_id == channel_id).delete()
+
+        # Delete the channel itself
+        db.query(channel_query).filter(channel_query.channel_id == channel_id).delete()
+
+        # Commit the transaction to finalize the changes
+        db.commit()
+    except Exception as e:
+        # Roll back the transaction in case of an exception
+        db.rollback()
+        # Handle the exception (e.g., by logging or re-raising)
+        raise HTTPException(
+            status_code=500, detail="Failed to delete channel and its messages."
+        ) from e
+
+    return {"message": "Channel and its messages deleted successfully."}
+
+
+@channel_manager.delete("/delete/message", tags=["Channel"])
+async def delete_channel(
+    room_id, message_id, user: User = Depends(get_current_user), db=Depends(get_db)
+):
+    message_table = get_message_model(room_id)
+    db.query(message_table).filter(message_table.id == message_id).delete()
+    db.commit()
+
+    return {"message": f"message-{message_id} deleted"}

@@ -44,8 +44,8 @@ from r3almX_backend.realtime_service.main import realtime
 # Global variable to store the RabbitMQ connection
 rabbit_connection = None
 
-async def get_rabbit_connection():
 
+async def get_rabbit_connection():
     global rabbit_connection
     # If the connection is None or closed, create a new connection
     if not rabbit_connection or rabbit_connection.is_closed:
@@ -56,7 +56,6 @@ async def get_rabbit_connection():
 
 
 def get_user_from_token(token: str, db) -> User:
-
     try:
         payload = jwt.decode(
             token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
@@ -67,13 +66,12 @@ def get_user_from_token(token: str, db) -> User:
     except JWTError as j:
         return j
 
-                
+
 # Initialize DigestionBroker and pass db to set_db method
 digestion_broker = DigestionBroker(batch_size=10, flush_interval=5)
 
 # Pass the get_db function to start_flush_scheduler to set the db session
 asyncio.create_task(digestion_broker.start_flush_scheduler())
-
 
 
 class RoomManager:
@@ -92,8 +90,8 @@ class RoomManager:
         self.redis_client = self.redis_client = redis.Redis().from_url(
             url="redis://172.22.96.1:6379", decode_responses=True, db=1
         )
-    async def broadcast(self, room_id: str):
 
+    async def broadcast(self, room_id: str):
         try:
             queue = self.rabbit_queues.get(room_id)
             if queue is None:
@@ -110,17 +108,18 @@ class RoomManager:
                                 {
                                     "message": message_received["message"],
                                     "username": get_user(
-                                        self.db, message_received["user"]
+                                        self.db, message_received["uid"]
                                     ).username,
-                                    "uid": message_received["user"],
-                                    "time_stamp": message_received["timestamp"] ,
-                                    "mid": message_received["id"],
+                                    "uid": message_received["uid"],
+                                    "timestamp": message_received["timestamp"],
+                                    "mid": message_received["mid"],
                                 }
                             )
-                            print(f"Sent message to websocket: {message_received["user"]}: {message_received["message"]}")
-                        await digestion_broker.add_message( message_received['user'],  message_received)
+                        await digestion_broker.add_message(
+                            message_received["uid"], message_received
+                        )
 
-        except Exception as e:  
+        except Exception as e:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             print(f"Error in broadcast task for room {room_id}: {e}\n")
             traceback.print_exception(
@@ -128,13 +127,11 @@ class RoomManager:
             )
 
     async def start_broadcast_task(self, room_id: str):
-
         if room_id not in self.broadcast_tasks:
             print(f"Starting broadcast task for room {room_id}\n")
             self.broadcast_tasks[room_id] = asyncio.create_task(self.broadcast(room_id))
 
     async def stop_broadcast_task(self, room_id: str):
-
         if room_id in self.broadcast_tasks:
             print(f"Stopping broadcast task for room {room_id}\n")
             task = self.broadcast_tasks.pop(room_id)
@@ -144,20 +141,16 @@ class RoomManager:
             except asyncio.CancelledError:
                 pass
 
-    async def add_message_to_queue(
-        self, room_id: str, message, user: str, mid: str
-    ):
+    async def add_message_to_queue(self, room_id: str, message, user: str, mid: str):
         channel = self.rabbit_channels.get(room_id)
         message_data = {
-            "user": str(user),
-                        "username": get_user(
-                                        self.db, str(user)
-                                    ).username,
-                        "room_id": room_id,
-                        "message": message['message'], 
-                        "id": mid, 
-                        "channel_id":message['channel_id'],
-                        "timestamp": message["timestamp"]
+            "uid": str(user),
+            "username": get_user(self.db, str(user)).username,
+            "room_id": room_id,
+            "message": message["message"],
+            "mid": mid,
+            "channel_id": message["channel_id"],
+            "timestamp": message["timestamp"],
         }
         if channel:
             await channel.default_exchange.publish(
@@ -167,13 +160,12 @@ class RoomManager:
             print(
                 f"Added message to queue {self.rabbit_queues[room_id].name}: {user}:{message}, id:{mid}\n"
             )
-            cache_key=f"room:{room_id}:channel:{message['channel_id']}:messages"
-            
+            cache_key = f"room:{room_id}:channel:{message['channel_id']}:messages"
+
             self.redis_client.lpush(cache_key, json.dumps(message_data))
             self.redis_client.ltrim(cache_key, 0, 99)
-            
-    async def connect_user(self, room_id: str, websocket: WebSocket):
 
+    async def connect_user(self, room_id: str, websocket: WebSocket):
         room = self.rooms.get(room_id)
         if room is None:
             self.rooms[room_id] = set()
@@ -186,7 +178,7 @@ class RoomManager:
             await self.start_broadcast_task(room_id)
         self.rooms[room_id].add(websocket)
         print(f"User connected to room {room_id}\n")
-        
+
     async def fetch_cached_messages(self, room_id: str, channel_id: str):
         cache_key = f"room:{room_id}:channel:{channel_id}:messages"
         cached_messages = self.redis_client.lrange(cache_key, 0, -1)
@@ -197,14 +189,13 @@ class RoomManager:
         print("user is being disconnected")
         if room:
             room.remove(websocket)
-            
+
             if not room:
-                
                 del self.rooms[room_id]
                 await self.stop_broadcast_task(room_id)
                 queue = self.rabbit_queues[room_id]
                 try:
-                    await queue.delete() 
+                    await queue.delete()
                     print(f"Queue {room_id} successfully deleted.\n")
                 except Exception as e:
                     print(f"Failed to delete queue {room_id}: {e}\n")
@@ -220,21 +211,43 @@ class RoomManager:
 room_manager = RoomManager()
 notification_system = NotificationSystem()
 
-async def get_messages(room_id: str, channel_id: str):
+
+async def get_messages(room_id: str, channel_id: str, db):
     cached_messages = await room_manager.fetch_cached_messages(room_id, channel_id)
     if cached_messages:
         return cached_messages
     else:
-        pass
-    
+        MessageModel = get_message_model(room_id)
+        channel_messages = (
+            db.query(MessageModel).filter(MessageModel.channel_id == channel_id).all()
+        )
+
+        cache_key = f"room:{room_id}:channel:{channel_id}:messages"
+
+        for message in channel_messages:
+            record_to_push = dict(message.to_dict())
+            record_to_push["username"] = (
+                get_user(db, str(record_to_push["sender_id"])).username,
+            )
+
+            room_manager.redis_client.lpush(cache_key, json.dumps(record_to_push))
+
+        room_manager.redis_client.ltrim(cache_key, 0, 99)
+
+        return [message.to_dict() for message in channel_messages]
+
+
 @realtime.get("/message/channel/cache", tags=["Channel"])
 async def get_all_connections(
-    room_id: str, channel_id: str, user: User = Depends(get_current_user),
-    db=Depends(get_db)
+    room_id: str,
+    channel_id: str,
+    user: User = Depends(get_current_user),
+    db=Depends(get_db),
 ):
-    cached_messages = await get_messages(room_id, channel_id)
+    cached_messages = await get_messages(room_id, channel_id, db)
     return cached_messages
-    
+
+
 @realtime.websocket("/message/{room_id}")
 async def websocket_endpoint(
     websocket: WebSocket, room_id: str, token: str, db=Depends(get_db)
@@ -259,17 +272,14 @@ async def websocket_endpoint(
                         )
                     )()
                 )
-                
+
                 await room_manager.add_message_to_queue(room_id, data, user.id, mid)
                 await notification_system.send_notification_to_user(
-                    user.id, {"room_id": room_id, "channel_id": data['channel_id'], "mid": mid}
+                    user.id,
+                    {"room_id": room_id, "channel_id": data["channel_id"], "mid": mid},
                 )
-                
+
         except WebSocketDisconnect:
             await room_manager.disconnect_user(room_id, websocket)
     else:
         await websocket.close(code=1008)
-
-
-
-

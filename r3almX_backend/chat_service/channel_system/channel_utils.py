@@ -4,6 +4,7 @@ import uuid
 from sqlalchemy import Column, DateTime, ForeignKey, String, Table, insert
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import relationship
 
 from r3almX_backend.database import *
@@ -25,6 +26,19 @@ def get_dynamic_model(table_name, columns):
     class DynamicModel(Base):
         __tablename__ = table_name
         __table__ = Table(table_name, metadata_obj, *columns, extend_existing=True)
+
+        def to_dict(self):
+            """Convert the model instance to a dictionary."""
+            result = {}
+            for c in inspect(self).mapper.column_attrs:
+                value = getattr(self, c.key)
+                if isinstance(value, uuid.UUID):
+                    result[c.key] = str(value)
+                elif isinstance(value, datetime.datetime):
+                    result[c.key] = value.isoformat()
+                else:
+                    result[c.key] = value
+            return result
 
     return DynamicModel
 
@@ -54,7 +68,6 @@ def get_message_model(room_id):
 
 
 def insert_to_channels_table(room_id, db, user, channel_name, channel_description):
-
     table = get_channel_model(room_id)
     channel_id = uuid.uuid4()
 
@@ -80,7 +93,6 @@ def delete_channel(room_id):
 
 
 def insert_to_messages_table(room_id, db, channel_id, user, message: str):
-
     table = get_message_model(room_id)
 
     # Generate UUID

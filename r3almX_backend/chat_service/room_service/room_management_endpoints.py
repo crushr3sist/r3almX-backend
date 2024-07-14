@@ -47,18 +47,19 @@ async def create_room(
 @rooms_service.post("/ban", tags=["Room"])
 async def ban_user(
     room_id: str, user: User = Depends(get_current_user), db=Depends(get_db)
-): ...
+):
+    ...
 
 
 @rooms_service.post("/kick", tags=["Room"])
 async def kick_user(
     room_id: str, user: User = Depends(get_current_user), db=Depends(get_db)
-): ...
+):
+    ...
 
 
 @rooms_service.get("/fetch", tags=["Room"])
 async def fetch_rooms(user: User = Depends(get_current_user), db=Depends(get_db)):
-
     rooms = []
     try:
         for users_rooms in set(user.rooms_joined):
@@ -97,7 +98,6 @@ async def edit_room(
 async def create_room(
     room_id: str, user: User = Depends(get_current_user), db=Depends(get_db)
 ):
-
     room_to_delete = (
         db.query(RoomsModel)
         .filter(RoomsModel.room_owner == user.id)

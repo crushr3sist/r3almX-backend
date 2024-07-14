@@ -20,7 +20,6 @@ from r3almX_backend.realtime_service.main import realtime
 
 
 def get_user_from_token(token: str, db) -> User:
-
     try:
         payload = jwt.decode(
             token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
