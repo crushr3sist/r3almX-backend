@@ -5,6 +5,7 @@ import uuid
 import redis
 from fastapi import Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import delete
 
 from r3almX_backend.auth_service.auth_utils import get_current_user
 from r3almX_backend.auth_service.user_handler_utils import get_db
@@ -117,9 +118,6 @@ def fetch_messages(channel_id, room_id, db, page=1, page_size=20):
 async def edit_channel(
     room_name: str, user: User = Depends(get_current_user), db=Depends(get_db)
 ): ...
-
-
-from sqlalchemy import Column, DateTime, ForeignKey, String, Table, delete, insert
 
 
 @channel_manager.delete("/delete", tags=["Channel"])

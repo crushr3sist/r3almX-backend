@@ -66,29 +66,28 @@ class RealmX(FastAPI):
             # channels_model.Base.metadata.create_all(bind=engine)
             # rooms_model.Base.metadata.create_all(bind=engine)
         except (sqlalchemy.exc.OperationalError, psycopg2.OperationalError) as p:
+            print(p)
+            # for _ in range(0, 5):
+            #     try:
+            #         from r3almX_backend.auth_service import user_models
+            #         from r3almX_backend.chat_service.models import rooms_model
+            #         from r3almX_backend.database import engine
 
-            for _ in range(0, 5):
-                try:
-                    from r3almX_backend.auth_service import user_models
-                    from r3almX_backend.chat_service.models import rooms_model
-                    from r3almX_backend.database import engine
+            #         # rooms_model.Base.metadata.drop_all(bind=engine)
+            #         # channels_model.Base.metadata.drop_all(bind=engine)
+            #         # user_models.Base.metadata.drop_all(bind=engine)
 
-                    # rooms_model.Base.metadata.drop_all(bind=engine)
-                    # channels_model.Base.metadata.drop_all(bind=engine)
-                    # user_models.Base.metadata.drop_all(bind=engine)
-
-                    user_models.Base.metadata.create_all(bind=engine)
-                    # channels_model.Base.metadata.create_all(bind=engine)
-                    # rooms_model.Base.metadata.create_all(bind=engine)
-                except (
-                    sqlalchemy.exc.OperationalError,
-                    psycopg2.OperationalError,
-                ) as p:
-                    print("db connection hitch, retrying")
-                    time.sleep(_ * 10)
-                else:
-                    break
-            raise Exception("Your db failed to connect bre")
+            #         user_models.Base.metadata.create_all(bind=engine)
+            #         # channels_model.Base.metadata.create_all(bind=engine)
+            #         # rooms_model.Base.metadata.create_all(bind=engine)
+            #     except (
+            #         sqlalchemy.exc.OperationalError,
+            #         psycopg2.OperationalError,
+            #     ) as p:
+            #         print("db connection hitch, retrying")
+            #     else:
+            #         break
+            # raise Exception("Your db failed to connect bre")
 
 
 r3almX = RealmX()

@@ -1,6 +1,4 @@
 import logging
-import random
-import re
 import subprocess
 
 import uvicorn
