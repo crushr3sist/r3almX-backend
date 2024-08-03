@@ -15,7 +15,7 @@ keyring==24.3.0
 loguru==0.7.2
 passlib==1.7.4
 Pillow==10.1.0
-Pillow==10.4.0
+Pillow==10.3.0
 protobuf==5.27.3
 psycopg2==2.8.6
 pydantic==2.8.2
@@ -23,12 +23,12 @@ pyOpenSSL==24.1.0
 pyOpenSSL==24.2.1
 pyotp==2.9.0
 python_jose==3.3.0
-redis==4.4.2
+redis==4.4.4
 Sphinx==8.0.2
 SQLAlchemy==2.0.31
 starlette==0.38.2
 thread==2.0.5
-tornado==6.4
+tornado==6.4.1
 urllib3_secure_extra==0.1.0
 uvicorn==0.30.4
 xmlrpclib==1.0.1
