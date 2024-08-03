@@ -1,5 +1,8 @@
+from xmlrpc.client import GzipDecodedResponse
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from .version import __version__
@@ -29,6 +32,7 @@ class RealmX(FastAPI):
             allow_methods=["*"],
             allow_headers=["*"],
         )
+        self.add_middleware(GZipMiddleware)
         self.add_middleware(SessionMiddleware, secret_key="feafawefawefawefawef")
 
     def add_routes(self):
@@ -36,13 +40,16 @@ class RealmX(FastAPI):
         from r3almX_backend.chat_service.channel_system.main import channel_manager
         from r3almX_backend.chat_service.invite_system.main import invite_system
         from r3almX_backend.chat_service.room_service.main import rooms_service
+        from r3almX_backend.friends_service.main import friends_service
+        from r3almX_backend.post_service.main import post_service
         from r3almX_backend.realtime_service.main import realtime
 
-        self.include_router(auth_router)
         self.include_router(realtime)
-
+        self.include_router(auth_router)
+        self.include_router(post_service)
         self.include_router(rooms_service)
         self.include_router(invite_system)
+        self.include_router(friends_service)
         self.include_router(channel_manager)
 
 

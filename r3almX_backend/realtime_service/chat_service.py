@@ -11,26 +11,22 @@ from typing import Dict
 
 # aio_pika is a library for working with RabbitMQ message queues
 import aio_pika
-import redis
+import redis.asyncio as redis
 
 # Imports from FastAPI for handling WebSockets and dependency injection
 from fastapi import Depends, HTTPException, WebSocket, WebSocketDisconnect
 
 # Imports from jose for working with JSON Web Tokens (JWT)
 from jose import JWTError, jwt
-from sqlalchemy import Column, DateTime, ForeignKey, String, Table, insert, select
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy import select
 
 # Imports from the project's auth_service module
-from r3almX_backend.auth_service.auth_utils import TokenData, get_current_user
+from r3almX_backend.auth_service.auth_utils import get_current_user
 from r3almX_backend.auth_service.Config import UsersConfig
 from r3almX_backend.auth_service.user_handler_utils import (
     get_db,
     get_user,
     get_user_by_email,
-    get_user_by_username,
 )
 from r3almX_backend.auth_service.user_models import User
 
@@ -87,7 +83,7 @@ class RoomManager:
         self.rabbit_queues: Dict[str, aio_pika.Queue] = {}
         self.rabbit_channels: Dict[str, aio_pika.Channel] = {}
         self.broadcast_tasks: Dict[str, asyncio.Task] = {}
-        self.redis_client = self.redis_client = redis.Redis().from_url(
+        self.redis_client = redis.Redis().from_url(
             url="redis://172.22.96.1:6379", decode_responses=True, db=1
         )
 
@@ -165,8 +161,8 @@ class RoomManager:
             )
             cache_key = f"room:{room_id}:channel:{message['channel_id']}:messages"
 
-            self.redis_client.lpush(cache_key, json.dumps(message_data))
-            self.redis_client.ltrim(cache_key, 0, 99)
+            await self.redis_client.lpush(cache_key, json.dumps(message_data))
+            await self.redis_client.ltrim(cache_key, 0, 99)
 
     async def connect_user(self, room_id: str, websocket: WebSocket):
         room = self.rooms.get(room_id)
@@ -184,7 +180,7 @@ class RoomManager:
 
     async def fetch_cached_messages(self, room_id: str, channel_id: str):
         cache_key = f"room:{room_id}:channel:{channel_id}:messages"
-        cached_messages = self.redis_client.lrange(cache_key, 0, -1)
+        cached_messages = await self.redis_client.lrange(cache_key, 0, -1)
         return [json.loads(msg) for msg in cached_messages]
 
     async def disconnect_user(self, room_id: str, websocket: WebSocket):
@@ -233,8 +229,8 @@ async def get_messages(room_id: str, channel_id: str, db):
                 get_user(db, str(record_to_push["sender_id"])).username,
             )
 
-            room_manager.redis_client.lpush(cache_key, json.dumps(record_to_push))
-        room_manager.redis_client.ltrim(cache_key, 0, 99)
+            await room_manager.redis_client.lpush(cache_key, json.dumps(record_to_push))
+        await room_manager.redis_client.ltrim(cache_key, 0, 99)
 
         return [message.to_dict() for message in channel_messages]
 

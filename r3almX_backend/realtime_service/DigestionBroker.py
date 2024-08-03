@@ -54,7 +54,7 @@ class DigestionBroker:
 
     async def add_message(self, user_id, message):
         """
-        - impliment a retry method for the message committing
+        - implement a retry method for the message committing
         """
         if self.db is None:
             raise ValueError("Database session (db) is not set. Call set_db(db) first.")
