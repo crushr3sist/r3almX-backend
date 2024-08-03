@@ -14,11 +14,11 @@ import aio_pika
 import redis
 
 # Imports from FastAPI for handling WebSockets and dependency injection
-from fastapi import Depends, WebSocket, WebSocketDisconnect
+from fastapi import Depends, HTTPException, WebSocket, WebSocketDisconnect
 
 # Imports from jose for working with JSON Web Tokens (JWT)
 from jose import JWTError, jwt
-from sqlalchemy import Column, DateTime, ForeignKey, String, Table, insert
+from sqlalchemy import Column, DateTime, ForeignKey, String, Table, insert, select
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -55,13 +55,13 @@ async def get_rabbit_connection():
     return rabbit_connection
 
 
-def get_user_from_token(token: str, db) -> User:
+async def get_user_from_token(token: str, db) -> User:
     try:
         payload = jwt.decode(
             token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
         )
         email: str = payload.get("sub")
-        user = get_user_by_email(db, email=email)
+        user = await get_user_by_email(db, email=email)
         return user
     except JWTError as j:
         return j
@@ -69,9 +69,9 @@ def get_user_from_token(token: str, db) -> User:
 
 # Initialize DigestionBroker and pass db to set_db method
 digestion_broker = DigestionBroker(batch_size=10, flush_interval=5)
-
+loop = asyncio.get_event_loop()
 # Pass the get_db function to start_flush_scheduler to set the db session
-asyncio.create_task(digestion_broker.start_flush_scheduler())
+loop.create_task(digestion_broker.start_flush_scheduler())
 
 
 class RoomManager:
@@ -103,13 +103,14 @@ class RoomManager:
                 async for message in queue_iter:
                     async with message.process():
                         message_received = json.loads(message.body.decode())
+                        user = await get_user(self.db, str(message_received["uid"]))
+                        print("\n\n\n\n\n\n\n")
+                        print("user:", user)
                         for websocket in room:
                             await websocket.send_json(
                                 {
                                     "message": message_received["message"],
-                                    "username": get_user(
-                                        self.db, message_received["uid"]
-                                    ).username,
+                                    "username": user.username,
                                     "uid": message_received["uid"],
                                     "timestamp": message_received["timestamp"],
                                     "mid": message_received["mid"],
@@ -143,9 +144,11 @@ class RoomManager:
 
     async def add_message_to_queue(self, room_id: str, message, user: str, mid: str):
         channel = self.rabbit_channels.get(room_id)
+        _user = await get_user(self.db, str(user))
+        print(user)
         message_data = {
             "uid": str(user),
-            "username": get_user(self.db, str(user)).username,
+            "username": _user.username,
             "room_id": room_id,
             "message": message["message"],
             "mid": mid,
@@ -197,9 +200,9 @@ class RoomManager:
                 try:
                     await queue.delete()
                     print(f"Queue {room_id} successfully deleted.\n")
+
                 except Exception as e:
                     print(f"Failed to delete queue {room_id}: {e}\n")
-
                 del self.rabbit_queues[room_id]
                 del self.rabbit_channels[room_id]
                 print(f"Deleted queue and stopped task for room {room_id}\n")
@@ -218,10 +221,10 @@ async def get_messages(room_id: str, channel_id: str, db):
         return cached_messages
     else:
         MessageModel = get_message_model(room_id)
-        channel_messages = (
-            db.query(MessageModel).filter(MessageModel.channel_id == channel_id).all()
+        channel_messages = await db.execute(
+            select(MessageModel).filter(MessageModel.channel_id == channel_id)
         )
-
+        channel_messages = channel_messages.scalar().all()
         cache_key = f"room:{room_id}:channel:{channel_id}:messages"
 
         for message in channel_messages:
@@ -231,7 +234,6 @@ async def get_messages(room_id: str, channel_id: str, db):
             )
 
             room_manager.redis_client.lpush(cache_key, json.dumps(record_to_push))
-
         room_manager.redis_client.ltrim(cache_key, 0, 99)
 
         return [message.to_dict() for message in channel_messages]
@@ -244,15 +246,19 @@ async def get_all_connections(
     user: User = Depends(get_current_user),
     db=Depends(get_db),
 ):
-    cached_messages = await get_messages(room_id, channel_id, db)
-    return cached_messages
+    try:
+
+        cached_messages = await get_messages(room_id, channel_id, db)
+        return cached_messages
+    except Exception as e:
+        return HTTPException(500, detail=e)
 
 
 @realtime.websocket("/message/{room_id}")
 async def websocket_endpoint(
     websocket: WebSocket, room_id: str, token: str, db=Depends(get_db)
 ):
-    user = get_user_from_token(token, db)
+    user = await get_user_from_token(token, db)
     print(user)
     room_manager.set_db(db)
     digestion_broker.set_db(db)

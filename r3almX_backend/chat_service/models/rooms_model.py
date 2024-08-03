@@ -22,7 +22,7 @@ class RoomsModel(Base):
     owner = relationship("User", back_populates="owned_rooms")
     channels = relationship("ChannelsModel", back_populates="room")
 
-    def __init__(self, room_owner: uuid.uuid4, room_name: str):
+    def __init__(self, room_owner: UUID | str, room_name: str):
         self.room_owner = room_owner
         self.room_name = room_name
         self.members = [self.room_owner]

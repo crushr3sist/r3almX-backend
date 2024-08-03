@@ -8,11 +8,10 @@ from google.auth.transport import requests
 from google.oauth2 import id_token
 from jose import JWTError, jwt
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from r3almX_backend.auth_service import user_handler_utils
 from r3almX_backend.auth_service.Config import UsersConfig
-
-from .user_handler_utils import (
+from r3almX_backend.auth_service.user_handler_utils import (
     get_db,
     get_user_by_email,
     get_user_by_username,
@@ -42,10 +41,10 @@ def create_access_token(
     )
 
 
-def authenticate_user(
+async def authenticate_user(
     username: str, password: str, google_token: str = None, db=Depends(get_db)
 ):
-    user = get_user_by_username(db, username=username)
+    user = await get_user_by_username(db, username=username)
     if not user:
         return False
     if google_token:
@@ -57,14 +56,14 @@ def authenticate_user(
                 return user
         except ValueError:
             return False
-    elif password and verify_password(password, user.hashed_password):
+    elif password and await verify_password(password, user.hashed_password):
         return user
     return False
 
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
-    db: user_handler_utils.Session = Depends(user_handler_utils.get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -81,7 +80,7 @@ async def get_current_user(
         token_data = TokenData(email=email)
     except JWTError as e:
         raise credentials_exception from e
-    user = get_user_by_email(db, email=token_data.email)
+    user = await get_user_by_email(db, email=token_data.email)
     if user is None:
         raise credentials_exception
     return user

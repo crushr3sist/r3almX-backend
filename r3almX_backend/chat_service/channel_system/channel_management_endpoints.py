@@ -5,7 +5,7 @@ import uuid
 import redis
 from fastapi import Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
 from r3almX_backend.auth_service.auth_utils import get_current_user
 from r3almX_backend.auth_service.user_handler_utils import get_db
@@ -31,7 +31,7 @@ async def create_channel(
     db=Depends(get_db),
 ):
     try:
-        insert_to_channels_table(
+        await insert_to_channels_table(
             room_id,
             db,
             user,
@@ -50,8 +50,9 @@ async def fetch_channels(
 ):
     try:
         _channel_query = get_channel_model(room_id)
-        channels = db.query(_channel_query).all()
-        return {"status": 200, "channels": channels}
+        channels = await db.execute(select(_channel_query))
+
+        return {"status": 200, "channels": channels.scalars().all()}
     except Exception as e:
         return {"status": 401, "exception": HTTPException(401, e)}
 
@@ -86,24 +87,6 @@ class MessageModel(BaseModel):
     timestamp: datetime.datetime
 
 
-@channel_manager.get("/message/fetch", tags=["Channel"])
-async def fetch_messages_endpoint(
-    channel_id: str,
-    room_id: str,
-    db=Depends(get_db),
-    user: User = Depends(get_current_user),
-    page: int = Query(1),
-    page_size: int = Query(20),
-) -> list[MessageModel]:
-    message_table = get_message_model(room_id)
-    message_query = (
-        db.query(message_table).filter(message_table.channel_id == channel_id).all()
-    )  # replace this query with the redis cache instead
-    start = (page - 1) * page_size
-    end = start + page_size
-    return message_query[start:end]
-
-
 def fetch_messages(channel_id, room_id, db, page=1, page_size=20):
     message_table = get_message_model(room_id)
     message_query = (
@@ -135,14 +118,14 @@ async def delete_channel(
         # Delete all messages associated with the channel
         messages = delete(message_table).where(message_table.channel_id == channel_id)
         channels = delete(channel_query).where(channel_query.id == channel_id)
-        db.execute(messages)
-        db.execute(channels)
+        await db.execute(messages)
+        await db.execute(channels)
 
         # Commit the transaction to finalize the changes
-        db.commit()
+        await db.commit()
     except Exception as e:
         # Roll back the transaction in case of an exception
-        db.rollback()
+        await db.rollback()
         # Handle the exception (e.g., by logging or re-raising)
         time.sleep(1)
         print(e, "\n")

@@ -32,8 +32,8 @@ class DigestionBroker:
                 if table_name is not None:
                     table = get_message_model(table_name)
                     stmt = table.delete().where(table.c.id == message_id)
-                    self.db.execute(stmt)
-                    self.db.commit()
+                    await self.db.execute(stmt)
+                    await self.db.commit()
                     print(f"Deleted message with id {message_id} from batch and DB\n")
                 else:
                     print(f"Message with id {message_id} not found in batch\n")
@@ -100,15 +100,15 @@ class DigestionBroker:
                             timestamp=msg["timestamp"],
                         )
                         print(f"Executing statement: {stmt}")
-                        self.db.execute(stmt)
+                        await self.db.execute(stmt)
                     except Exception as e:
                         pass
-                self.db.commit()
+                await self.db.commit()
                 print(f"Flushed {len(self.message_batch)} messages to DB\n")
                 self.message_batch.clear()
             except Exception as e:
                 print(f"Exception occurred in flush db: {e}")
-                self.db.rollback()
+                await self.db.rollback()
 
     async def start_flush_scheduler(self):
         try:

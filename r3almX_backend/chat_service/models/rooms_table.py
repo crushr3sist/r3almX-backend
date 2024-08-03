@@ -9,6 +9,7 @@ from r3almX_backend.database import Base
 
 
 def create_channel_table(room_id):
+    print(room_id)
     table_name = f"channels_{room_id}"
     return Table(
         table_name,

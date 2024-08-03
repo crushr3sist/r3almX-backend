@@ -16,13 +16,14 @@ def ip_addy():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    subprocess.Popen("fastapi dev r3almX_backend")
 
-    uvicorn.run(
-        "r3almX_backend:r3almX",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        use_colors=True,
-        log_level="info",
-        access_log=True,
-    )
+    # uvicorn.run(
+    #     "r3almX_backend:r3almX",
+    #     host="0.0.0.0",
+    #     port=8000,
+    #     reload=True,
+    #     use_colors=True,
+    #     log_level="info",
+    #     access_log=True,
+    # )

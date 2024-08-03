@@ -19,13 +19,13 @@ from r3almX_backend.auth_service.user_models import User
 from r3almX_backend.realtime_service.main import realtime
 
 
-def get_user_from_token(token: str, db) -> User:
+async def get_user_from_token(token: str, db) -> User:
     try:
         payload = jwt.decode(
             token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
         )
         email: str = payload.get("sub")
-        user = get_user_by_email(db, email=email)
+        user = await get_user_by_email(db, email=email)
         return user
     except JWTError as j:
         return j
@@ -104,14 +104,14 @@ class NotificationSystem:
 
 @realtime.get("/status")
 async def read_redis(token: str, db=Depends(get_db)):
-    user = get_user_from_token(token, db)
+    user = await get_user_from_token(token, db)
     cached_data = connection_manager.get_status_cache(user.id)
     return JSONResponse(cached_data)
 
 
 @realtime.websocket("/connection")
 async def connect(websocket: WebSocket, token: str, db=Depends(get_db)):
-    user = get_user_from_token(token, db)
+    user = await get_user_from_token(token, db)
     if user:
         await websocket.accept()
         connection_manager.connect(user.id)

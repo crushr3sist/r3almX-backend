@@ -7,9 +7,17 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 from jose import JWTError, jwt
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from r3almX_backend.auth_service import user_handler_utils
 from r3almX_backend.auth_service.Config import UsersConfig
+from r3almX_backend.auth_service.user_handler_utils import (
+    create_auth_data,
+    create_user_record,
+    get_db,
+    get_user_by_email,
+    get_user_by_username,
+    set_user_online,
+)
 from r3almX_backend.auth_service.user_schemas import UserCreate
 
 from .auth_utils import authenticate_user, create_access_token, get_current_user
@@ -21,7 +29,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 
 @auth_router.post("/google/callback", tags=["Auth"])
-async def auth_google_callback(request: Request, db=Depends(user_handler_utils.get_db)):
+async def auth_google_callback(request: Request, db=Depends(get_db)):
     try:
         data = await request.json()
         code = data.get("code")
@@ -34,36 +42,40 @@ async def auth_google_callback(request: Request, db=Depends(user_handler_utils.g
             UsersConfig.GOOGLE_CLIENT_ID,
             clock_skew_in_seconds=30 * 60,
         )
-        print(str(google_user_info))
+        print(google_user_info)
         if not google_user_info:
             raise HTTPException(status_code=500, detail="Email could not be verified")
 
         email = google_user_info.get("email")
+        print(email)
         if not email:
             raise HTTPException(status_code=400, detail="Email not found in token")
 
-        if not (user_handler_utils.get_user_by_email(db, email)):
+        if not (await get_user_by_email(db, email)):
             print("user doesn't exist")
             try:
-                user_handler_utils.create_user(
-                    db,
-                    UserCreate(
-                        username=email,
-                        email=email,
-                        password=secrets.token_urlsafe(32),
-                        google_id=google_user_info.get("sub"),
-                        profile_pic=google_user_info.get("picture"),
-                    ),
+                print("trying to create a user")
+                validated_info = UserCreate(
+                    username=email,
+                    email=email,
+                    password=secrets.token_urlsafe(32),
+                    google_id=google_user_info.get("sub"),
+                    profile_pic=google_user_info.get("picture"),
                 )
+                print(validated_info)
+                await create_user_record(db, validated_info)
             except Exception as e:
                 return HTTPException(status_code=500, detail=e)
-        user = user_handler_utils.get_user_by_email(db, email)
+        user = await get_user_by_email(db, email)
+        print(user.username)
+        print(user.email)
 
         username_set = True
         if user.email == user.username:
             username_set = False
 
         user_access_token = create_access_token(data={"sub": str(user.email)})
+        print(user_access_token)
 
         return {
             "access_token": user_access_token,
@@ -77,34 +89,34 @@ async def auth_google_callback(request: Request, db=Depends(user_handler_utils.g
 
 
 @auth_router.patch("/change_username", tags=["Auth"])
-def assign_username(
+async def assign_username(
     username: str,
     token: str,
-    db=Depends(user_handler_utils.get_db),
+    db=Depends(get_db),
 ):
     payload = jwt.decode(
         token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
     )
     email: str = payload.get("sub")
-    user_inst = user_handler_utils.get_user_by_email(db, email)
+    user_inst = await get_user_by_email(db, email)
     user_inst.username = str(username)
     access_token = create_access_token(
         data={"sub": user_inst.email},
     )
 
-    db.commit()
+    await db.commit()
 
     return {"access_token": access_token, "token_type": "bearer"}
 
 
 @auth_router.get("/fetch", tags=["Auth"])
-def verify_token(token: str, db=Depends(user_handler_utils.get_db)):
+async def verify_token(token: str, db=Depends(get_db)):
     try:
         decoded_token = jwt.decode(
             token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
         )
 
-        user = user_handler_utils.get_user_by_email(db, decoded_token.get("sub"))
+        user = await get_user_by_email(db, decoded_token.get("sub"))
         if user:
             return {
                 "status": 200,
@@ -121,7 +133,7 @@ def verify_token(token: str, db=Depends(user_handler_utils.get_db)):
 
 
 @auth_router.get("/token/check", tags=["Auth"])
-def verify_token(token: str, db=Depends(user_handler_utils.get_db)):
+async def verify_token(token: str, db=Depends(get_db)):
     try:
         decoded_token = jwt.decode(
             token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
@@ -129,7 +141,7 @@ def verify_token(token: str, db=Depends(user_handler_utils.get_db)):
 
         print({**decoded_token})
 
-        user = user_handler_utils.get_user_by_email(db, decoded_token.get("sub"))
+        user = await get_user_by_email(db, decoded_token.get("sub"))
         if user:
             return {
                 "status": 200,
@@ -143,13 +155,13 @@ def verify_token(token: str, db=Depends(user_handler_utils.get_db)):
 
 
 @auth_router.post("/token", tags=["Auth"])
-def login_for_access_token(
+async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     google_token: str = None,
-    db=Depends(user_handler_utils.get_db),
+    db=Depends(get_db),
 ):
 
-    user = authenticate_user(
+    user = await authenticate_user(
         username=form_data.username,
         password=form_data.password,
         google_token=google_token,
@@ -166,14 +178,14 @@ def login_for_access_token(
         data={"sub": user.username},
         expire_delta=timedelta(weeks=1),
     )
-    user_handler_utils.set_user_online(db, user.id)
+    set_user_online(db, user.id)
 
     return {"access_token": access_token, "token_type": "bearer"}
 
 
 @auth_router.post("/token/refresh", tags=["Auth"])
-def login_for_access_token(
-    db=Depends(user_handler_utils.get_db),
+async def login_for_access_token(
+    db=Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     try:
@@ -188,12 +200,12 @@ def login_for_access_token(
 
 
 @auth_router.post("/register", tags=["Auth"])
-def create_user(
-    user: user_handler_utils.user_schemas.UserCreate = Depends(),
-    db: user_handler_utils.Session = Depends(user_handler_utils.get_db),
+async def create_user(
+    user: UserCreate = Depends(),
+    db: AsyncSession = Depends(get_db),
 ):
 
-    if db_user := user_handler_utils.get_user_by_username(db, username=user.username):
+    if db_user := await get_user_by_username(db, username=user.username):
         return {
             "status_code": 400,
             "detail": "User with this email already exists",
@@ -201,11 +213,9 @@ def create_user(
         }
 
     try:
-        db_user = user_handler_utils.create_user(db=db, user=user)
+        db_user = await create_user(db=db, user=user)
         otp_secret_key = pyotp.random_base32()
-        user_handler_utils.create_auth_data(
-            db=db, user_id=db_user.id, otp_secret_key=otp_secret_key
-        )
+        create_auth_data(db=db, user_id=db_user.id, otp_secret_key=otp_secret_key)
 
         return {"status_code": 200, "detail": "User created successfully"}
     except Exception as e:
