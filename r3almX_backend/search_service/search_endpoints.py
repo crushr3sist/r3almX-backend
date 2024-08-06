@@ -28,7 +28,10 @@ async def get_friends(
     results = [await get_user_by_username(db, username[0]) for username in user_found]
     return {
         "status": 200,
-        "results": ({"id": user.id, "username": user.username} for user in results),
+        "results": (
+            {"id": user.id, "username": user.username, "pfp": user.profile_pic}
+            for user in results
+        ),
     }
 
 
