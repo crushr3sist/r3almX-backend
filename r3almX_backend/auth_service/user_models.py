@@ -1,10 +1,19 @@
 import uuid
 
-from sqlalchemy import Boolean, Column, ForeignKey, String
+from sqlalchemy import Boolean, Column, ForeignKey, Index, String, cast
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
 from r3almX_backend.database import Base
+
+
+def create_tsvector(*args):
+    exp = args[0]
+    for e in args[1:]:
+        exp += " " + e
+    return func.to_tsvector("english", exp)
 
 
 class AuthData(Base):
@@ -21,7 +30,6 @@ class AuthData(Base):
 
 class User(Base):
     __tablename__ = "users"
-
     id = Column(UUID(as_uuid=True), default=uuid.uuid4, primary_key=True, index=True)
     email: str = Column(String, unique=True, index=True)
     username: str = Column(String, unique=True, index=True)
@@ -35,3 +43,7 @@ class User(Base):
     auth_data = relationship("AuthData", back_populates="user")
     owned_rooms = relationship("RoomsModel", back_populates="owner")
     sent_messages = relationship("MessageModel", back_populates="sender")
+
+    __ts_vector__ = create_tsvector(cast(func.coalesce(username, ""), postgresql.TEXT))
+
+    __table_args__ = (Index("idx_person_fts", __ts_vector__, postgresql_using="gin"),)

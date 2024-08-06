@@ -43,7 +43,9 @@ class RealmX(FastAPI):
         from r3almX_backend.friends_service.main import friends_service
         from r3almX_backend.post_service.main import post_service
         from r3almX_backend.realtime_service.main import realtime
+        from r3almX_backend.search_service.main import search_service
 
+        self.include_router(search_service)
         self.include_router(realtime)
         self.include_router(auth_router)
         self.include_router(post_service)
