@@ -2,7 +2,7 @@ from fastapi import Depends, Query
 from sqlalchemy import func, select, text
 
 from r3almX_backend.auth_service.auth_utils import get_current_user
-from r3almX_backend.auth_service.user_handler_utils import get_db
+from r3almX_backend.auth_service.user_handler_utils import get_db, get_user_by_username
 from r3almX_backend.auth_service.user_models import User
 from r3almX_backend.database import AsyncSession
 from r3almX_backend.search_service.main import search_service
@@ -23,11 +23,12 @@ async def get_friends(
         """
     )
     result = await db.execute(sql, {"query": query})
-    user_found = result.fetchall()
-    print(user_found)
+    user_found = result.fetchall()[0:5]
 
+    results = [await get_user_by_username(db, username[0]) for username in user_found]
     return {
-        "result": [{"username": user[0], "distance": user[1]} for user in user_found]
+        "status": 200,
+        "results": ({"id": user.id, "username": user.username} for user in results),
     }
 
 
