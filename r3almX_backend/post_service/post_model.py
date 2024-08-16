@@ -15,6 +15,8 @@ class PostModel(Base):
     post_body = Column(String(), nullable=False)
     post_hashtags = Column(String(), nullable=False)
     post_mentions = Column(String(), nullable=True)
+    author = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    post_relationship = relationship("User", back_populates="posts_created")
 
     def __init__(self, post_name, post_body, post_hashtags, post_mentions):
         self.post_name = post_name

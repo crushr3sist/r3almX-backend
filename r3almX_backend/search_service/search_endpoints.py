@@ -16,16 +16,17 @@ async def get_friends(
 ):
     sql = text(
         """
-        SELECT username, levenshtein(username, :query) AS distance
-        FROM users
-        WHERE levenshtein(username, :query) <= 5
-        ORDER BY distance
-        """
+            SELECT username, levenshtein(username, :query) AS distance
+            FROM users
+            WHERE levenshtein(username, :query) <= 5
+            ORDER BY distance
+            """
     )
     result = await db.execute(sql, {"query": query})
-    user_found = result.fetchall()[0:5]
+    query_results = result.fetchall()[0:5]
 
-    results = [await get_user_by_username(db, username[0]) for username in user_found]
+    results = [await get_user_by_username(db, query_results[0]) for _ in query_results]
+
     return {
         "status": 200,
         "results": (
