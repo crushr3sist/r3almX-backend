@@ -7,12 +7,11 @@ from sqlalchemy.ext.declarative import declarative_base
 path = pathlib.Path(__file__).parent.absolute()
 
 
-SQLALCHEMY_DATABASE_URI1 = "postgresql://postgres:ronny@localhost:5432"
-SQLALCHEMY_DATABASE_URI2 = "postgresql://postgres:postgrespw@postgres:5432"
-SQLALCHEMY_DATABASE_URI3 = "postgresql+asyncpg://postgres:ronny@localhost:5432"
+prod_uri = "postgresql+asyncpg://postgres:ronny@postgres:5432"
+development_uri = "postgresql+asyncpg://postgres:ronny@localhost:5432"
 
 
-engine = create_async_engine(SQLALCHEMY_DATABASE_URI3, echo=False, pool_size=1000)
+engine = create_async_engine(prod_uri, echo=False, pool_size=1000)
 
 SessionLocal = async_sessionmaker(
     bind=engine,

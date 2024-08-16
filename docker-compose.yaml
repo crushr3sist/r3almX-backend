@@ -48,18 +48,16 @@ services:
       - my-network
     restart: always
 
-  # realmx:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - "8000:8000"
-  #   depends_on:
-  #     - postgres
-  #     - redis
-  #     - rabbitmq
-  #   environment:
-  #     DATABASE_URL: "postgresql://postgres:ronny@postgres:5432"
-  #     REDIS_URL: "redis://redis:6379"
-  #   networks:
-  #     - my-network
+  realmx:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+
+    networks:
+      - my-network
