@@ -2,21 +2,25 @@ from email.utils import parseaddr
 
 from fastapi import HTTPException
 from passlib.context import CryptContext
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from r3almX_backend.auth_service.user_models import AuthData, User
 from r3almX_backend.auth_service.user_schemas import UserCreate
 from r3almX_backend.database import SessionLocal
-from sqlalchemy import select
+
 password_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+
 
 async def get_user(db: AsyncSession, user_id: str):
     result = await db.execute(select(User).filter(User.id == user_id))
     return result.scalars().first()
 
+
 async def get_user_by_username(db: AsyncSession, username: str):
     result = await db.execute(select(User).filter(User.username == username))
     return result.scalars().first()
+
 
 async def get_user_by_email(db: AsyncSession, email: str):
     result = await db.execute(select(User).filter(User.email == email))
@@ -68,9 +72,11 @@ async def create_user_record(db: AsyncSession, user: UserCreate):
         google_id=user.google_id,
         profile_pic=user.profile_pic,
     )
+
     db.add(db_user)
     await db.commit()
     await db.refresh(db_user)
+
     return db_user
 
 
@@ -80,7 +86,6 @@ async def create_auth_data(db: AsyncSession, user_id: str, otp_secret_key: str):
     await db.commit()
     await db.refresh(auth_data)
     return auth_data
-
 
 
 async def get_db():

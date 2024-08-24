@@ -11,7 +11,7 @@ prod_uri = "postgresql+asyncpg://postgres:ronny@postgres:5432"
 development_uri = "postgresql+asyncpg://postgres:ronny@localhost:5432"
 
 
-engine = create_async_engine(prod_uri, echo=False, pool_size=1000)
+engine = create_async_engine(development_uri, echo=False, pool_size=1000)
 
 SessionLocal = async_sessionmaker(
     bind=engine,

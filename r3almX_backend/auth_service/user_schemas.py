@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel
 
@@ -7,11 +7,12 @@ class UserBase(BaseModel):
     email: str
 
 
-class UserCreate(UserBase):
+class UserCreate(BaseModel):
+    email: str
     password: str
     username: str
-    google_id: str
-    profile_pic: str
+    google_id: Optional[str] = None
+    profile_pic: Optional[str] = None
 
 
 class User(UserBase):
@@ -19,7 +20,7 @@ class User(UserBase):
     is_active: bool
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TokenData(BaseModel):

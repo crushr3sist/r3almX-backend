@@ -32,21 +32,28 @@ class Token(BaseModel):
 
 def create_access_token(
     data: dict,
-) -> str:
+):
     data_to_encode = data.copy()
     expire = datetime.now() + timedelta(weeks=2)
     data_to_encode.update({"exp": expire})
-    return jwt.encode(
-        data_to_encode, UsersConfig.SECRET_KEY, algorithm=UsersConfig.ALGORITHM
+    return (
+        jwt.encode(
+            data_to_encode, UsersConfig.SECRET_KEY, algorithm=UsersConfig.ALGORITHM
+        ),
+        expire,
     )
 
 
 async def authenticate_user(
-    username: str, password: str, google_token: str = None, db=Depends(get_db)
+    email: str,
+    password: str,
+    google_token: str = None,
+    db=Depends(get_db),
 ):
-    user = await get_user_by_username(db, username=username)
+    user = await get_user_by_email(db, email=email)
     if not user:
         return False
+
     if google_token:
         try:
             google_user = id_token.verify_oauth2_token(
@@ -79,6 +86,7 @@ async def get_current_user(
             raise credentials_exception
         token_data = TokenData(email=email)
     except JWTError as e:
+        print(e)
         raise credentials_exception from e
     user = await get_user_by_email(db, email=token_data.email)
     if user is None:

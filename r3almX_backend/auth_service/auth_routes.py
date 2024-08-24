@@ -2,7 +2,7 @@ import secrets
 from datetime import timedelta
 
 import pyotp
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Body, Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
@@ -42,19 +42,15 @@ async def auth_google_callback(request: Request, db=Depends(get_db)):
             UsersConfig.GOOGLE_CLIENT_ID,
             clock_skew_in_seconds=30 * 60,
         )
-        print(google_user_info)
         if not google_user_info:
             raise HTTPException(status_code=500, detail="Email could not be verified")
 
         email = google_user_info.get("email")
-        print(email)
         if not email:
             raise HTTPException(status_code=400, detail="Email not found in token")
 
         if not (await get_user_by_email(db, email)):
-            print("user doesn't exist")
             try:
-                print("trying to create a user")
                 validated_info = UserCreate(
                     username=email,
                     email=email,
@@ -62,30 +58,53 @@ async def auth_google_callback(request: Request, db=Depends(get_db)):
                     google_id=google_user_info.get("sub"),
                     profile_pic=google_user_info.get("picture"),
                 )
-                print(validated_info)
                 await create_user_record(db, validated_info)
             except Exception as e:
                 return HTTPException(status_code=500, detail=e)
         user = await get_user_by_email(db, email)
-        print(user.username)
-        print(user.email)
 
         username_set = True
         if user.email == user.username:
             username_set = False
 
-        user_access_token = create_access_token(data={"sub": str(user.email)})
-        print(user_access_token)
+        user_access_token, expire_time = create_access_token(
+            data={"sub": str(user.email)}
+        )
 
         return {
             "access_token": user_access_token,
             "token_type": "bearer",
+            "expire_time": expire_time,
             "username_set": username_set,
         }
 
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail=f"Google login failed: {str(e)}")
+
+
+@auth_router.post("/register", tags=["Auth"])
+async def create_user(
+    user: UserCreate = Body(...),
+    db=Depends(get_db),
+):
+
+    db_user = await get_user_by_username(db, username=user.username)
+    if db_user:
+        return {
+            "status_code": 400,
+            "detail": "User with this email already exists",
+            "user": db_user,
+        }
+
+    try:
+        db_user = await create_user_record(db=db, user=user)
+        otp_secret_key = pyotp.random_base32()
+        await create_auth_data(db=db, user_id=db_user.id, otp_secret_key=otp_secret_key)
+
+        return {"status_code": 200, "detail": "User created successfully"}
+    except Exception as e:
+        return {"status_code": 400, "detail": str(e)}
 
 
 @auth_router.patch("/change_username", tags=["Auth"])
@@ -100,13 +119,17 @@ async def assign_username(
     email: str = payload.get("sub")
     user_inst = await get_user_by_email(db, email)
     user_inst.username = str(username)
-    access_token = create_access_token(
+    access_token, expire_time = create_access_token(
         data={"sub": user_inst.email},
     )
 
     await db.commit()
 
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "expire_time": expire_time,
+    }
 
 
 @auth_router.get("/fetch", tags=["Auth"])
@@ -117,6 +140,7 @@ async def verify_token(token: str, db=Depends(get_db)):
         )
 
         user = await get_user_by_email(db, decoded_token.get("sub"))
+        print(user)
         if user:
             return {
                 "status": 200,
@@ -139,8 +163,6 @@ async def verify_token(token: str, db=Depends(get_db)):
             token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
         )
 
-        print({**decoded_token})
-
         user = await get_user_by_email(db, decoded_token.get("sub"))
         if user:
             return {
@@ -156,36 +178,44 @@ async def verify_token(token: str, db=Depends(get_db)):
 
 @auth_router.post("/token", tags=["Auth"])
 async def login_for_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends(),
+    email: str,
+    password: str,
     google_token: str = None,
     db=Depends(get_db),
 ):
-
+    if google_token:
+        user = await authenticate_user(
+            email=email,
+            password=password,
+            google_token=google_token,
+            db=db,
+        )
     user = await authenticate_user(
-        username=form_data.username,
-        password=form_data.password,
-        google_token=google_token,
+        email=email,
+        password=password,
         db=db,
     )
-
+    print(email, password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token = create_access_token(
-        data={"sub": user.username},
-        expire_delta=timedelta(weeks=1),
+    access_token, expire_time = create_access_token(
+        data={"sub": user.email},
     )
     set_user_online(db, user.id)
 
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "expire_time": expire_time,
+    }
 
 
 @auth_router.post("/token/refresh", tags=["Auth"])
 async def login_for_access_token(
-    db=Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     try:
@@ -197,26 +227,3 @@ async def login_for_access_token(
         return {"error": e, "status": 500}
 
     return {"access_token": access_token, "token_type": "bearer", "status": 200}
-
-
-@auth_router.post("/register", tags=["Auth"])
-async def create_user(
-    user: UserCreate = Depends(),
-    db: AsyncSession = Depends(get_db),
-):
-
-    if db_user := await get_user_by_username(db, username=user.username):
-        return {
-            "status_code": 400,
-            "detail": "User with this email already exists",
-            "user": db_user,
-        }
-
-    try:
-        db_user = await create_user(db=db, user=user)
-        otp_secret_key = pyotp.random_base32()
-        create_auth_data(db=db, user_id=db_user.id, otp_secret_key=otp_secret_key)
-
-        return {"status_code": 200, "detail": "User created successfully"}
-    except Exception as e:
-        return {"status_code": 400, "detail": str(e)}
