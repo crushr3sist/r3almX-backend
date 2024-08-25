@@ -48,7 +48,6 @@ async def auth_google_callback(request: Request, db=Depends(get_db)):
         email = google_user_info.get("email")
         if not email:
             raise HTTPException(status_code=400, detail="Email not found in token")
-
         if not (await get_user_by_email(db, email)):
             try:
                 validated_info = UserCreate(
@@ -62,11 +61,11 @@ async def auth_google_callback(request: Request, db=Depends(get_db)):
             except Exception as e:
                 return HTTPException(status_code=500, detail=e)
         user = await get_user_by_email(db, email)
-
+        print(user)
         username_set = True
         if user.email == user.username:
             username_set = False
-
+        print(str(user.email))
         user_access_token, expire_time = create_access_token(
             data={"sub": str(user.email)}
         )

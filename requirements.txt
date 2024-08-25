@@ -58,3 +58,4 @@ starlette
 itsdangerous
 asyncpg
 python-multipart
+asyncpgsa

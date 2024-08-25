@@ -78,6 +78,10 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
+        if not token or "." not in token:
+            print(f"Invalid token format: {token}")
+            raise credentials_exception
+
         payload = jwt.decode(
             token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
         )
@@ -86,7 +90,8 @@ async def get_current_user(
             raise credentials_exception
         token_data = TokenData(email=email)
     except JWTError as e:
-        print(e)
+        print(f"JWT Error: {e}")
+        print(f"Token: {token}")
         raise credentials_exception from e
     user = await get_user_by_email(db, email=token_data.email)
     if user is None:
