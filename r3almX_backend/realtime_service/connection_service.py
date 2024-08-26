@@ -102,6 +102,18 @@ class NotificationSystem:
         await self.connections.send_notification(user_id, message)
 
 
+async def send_periodic_status_update(websocket, user_id):
+    try:
+        while True:
+            await asyncio.sleep(30)  # Send update every 30 seconds
+            current_status = connection_manager.get_status(user_id)
+            await websocket.send_json(
+                {"type": "STATUS_UPDATE", "status": current_status}
+            )
+    except RuntimeError as e:
+        pass
+
+
 @realtime.get("/status")
 async def read_redis(token: str, db=Depends(get_db)):
     user = await get_user_from_token(token, db)
@@ -116,6 +128,8 @@ async def connect(websocket: WebSocket, token: str, db=Depends(get_db)):
         await websocket.accept()
         connection_manager.connect(user.id)
         connection_manager.connection_sockets[user.id] = websocket
+        initial_status = connection_manager.get_status(user.id)
+        await websocket.send_json({"type": "STATUS_UPDATE", "status": initial_status})
 
         last_activity = datetime.datetime.now()
         heartbeat_interval = 30
@@ -123,6 +137,7 @@ async def connect(websocket: WebSocket, token: str, db=Depends(get_db)):
 
         try:
             while True:
+                asyncio.create_task(send_periodic_status_update(websocket, user.id))
                 await websocket.send_json(
                     {"status": "200", "connection": "established"}
                 )
@@ -152,7 +167,7 @@ async def connect(websocket: WebSocket, token: str, db=Depends(get_db)):
                             await websocket.close()
                             connection_manager.disconnect(user.id)
                             break
-        except WebSocketDisconnect:
+        except (WebSocketDisconnect, RuntimeError):
             connection_manager.disconnect(user.id)
     else:
         return websocket.close(1001)

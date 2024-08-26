@@ -14,7 +14,6 @@ from r3almX_backend.auth_service.Config import UsersConfig
 from r3almX_backend.auth_service.user_handler_utils import (
     get_db,
     get_user_by_email,
-    get_user_by_username,
     verify_password,
 )
 

@@ -22,6 +22,14 @@ from r3almX_backend.chat_service.models.rooms_model import RoomsModel
 from r3almX_backend.database import *
 
 
+class MessageModel(BaseModel):
+    id: uuid.UUID
+    channel_id: uuid.UUID
+    sender_id: uuid.UUID
+    message: str
+    timestamp: datetime.datetime
+
+
 @channel_manager.post("/create", tags=["Channel"])
 async def create_channel(
     channel_description: str,
@@ -46,7 +54,9 @@ async def create_channel(
 
 @channel_manager.get("/fetch", tags=["Channel"])
 async def fetch_channels(
-    room_id: str, user: User = Depends(get_current_user), db=Depends(get_db)
+    room_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     try:
         _channel_query = get_channel_model(room_id)
@@ -77,24 +87,6 @@ async def create_channel(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating channel: {str(e)}")
-
-
-class MessageModel(BaseModel):
-    id: uuid.UUID
-    channel_id: uuid.UUID
-    sender_id: uuid.UUID
-    message: str
-    timestamp: datetime.datetime
-
-
-def fetch_messages(channel_id, room_id, db, page=1, page_size=20):
-    message_table = get_message_model(room_id)
-    message_query = (
-        db.query(message_table).filter(message_table.channel_id == channel_id).all()
-    )  # replace this query with the redis cache instead
-    start = (page - 1) * page_size
-    end = start + page_size
-    return message_query[start:end]
 
 
 @channel_manager.post("/edit", tags=["Channel"])

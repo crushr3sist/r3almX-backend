@@ -155,6 +155,30 @@ async def verify_token(token: str, db=Depends(get_db)):
         return {"status": 401, "is_user_logged_in": False}
 
 
+@auth_router.get("/fetch/user", tags=["Auth"])
+async def verify_token(token: str, username: str, db=Depends(get_db)):
+    try:
+        decoded_token = jwt.decode(
+            token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
+        )
+
+        user = await get_user_by_username(db, username)
+        print(user)
+        if user:
+            return {
+                "status": 200,
+                "user": {
+                    "username": user.username,
+                    "email": user.email,
+                    "pic": user.profile_pic,
+                },
+            }
+        return {"status": 401, "is_user_logged_in": False}
+
+    except JWTError as j:
+        return {"status": 401, "is_user_logged_in": False}
+
+
 @auth_router.get("/token/check", tags=["Auth"])
 async def verify_token(token: str, db=Depends(get_db)):
     try:

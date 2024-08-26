@@ -17,7 +17,7 @@ async def get_user(db: AsyncSession, user_id: str):
     return result.scalars().first()
 
 
-async def get_user_by_username(db: AsyncSession, username: str):
+async def get_user_by_username(db: AsyncSession, username: str) -> User:
     result = await db.execute(select(User).filter(User.username == username))
     return result.scalars().first()
 
