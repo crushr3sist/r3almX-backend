@@ -125,6 +125,7 @@ async def assign_username(
     await db.commit()
 
     return {
+        "status"
         "access_token": access_token,
         "token_type": "bearer",
         "expire_time": expire_time,

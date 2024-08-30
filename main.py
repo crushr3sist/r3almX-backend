@@ -5,8 +5,8 @@ import uvicorn
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    subprocess.Popen("granian --interface asgi r3almX_backend:r3almX  --port=8000")
-    # subprocess.Popen("fastapi dev r3almX_backend  --port=8000")
+    # subprocess.Popen("granian --interface asgi r3almX_backend:r3almX  --port=8000")
+    subprocess.Popen("fastapi dev r3almX_backend  --port=8000")
 
     # uvicorn.run(
     #     "r3almX_backend:r3almX",
