@@ -1,4 +1,5 @@
 import uuid
+from typing import Never
 
 from sqlalchemy import Boolean, Column, ForeignKey, Index, String, cast, func, literal
 from sqlalchemy.dialects.postgresql import ARRAY, REGCONFIG, TEXT, UUID
@@ -17,7 +18,9 @@ def create_tsvector(*args):
 class AuthData(Base):
     __tablename__ = "auth_data"
 
-    id = Column(UUID(as_uuid=True), default=uuid.uuid4, primary_key=True, index=True)
+    id: str | Column[uuid.UUID] = Column(
+        UUID(as_uuid=True), default=uuid.uuid4, primary_key=True, index=True
+    )
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     otp_secret_key = Column(String, unique=True, index=True)
     mail_otp_enabled = Column(Boolean, default=False)
@@ -28,16 +31,19 @@ class AuthData(Base):
 
 class User(Base):
     __tablename__ = "users"
-    id = Column(UUID(as_uuid=True), default=uuid.uuid4, primary_key=True, index=True)
-    email: str = Column(String, unique=True, index=True)
-    username: str = Column(String, unique=True, index=True)
-    hashed_password: str = Column(String)
-    google_id = Column(String, unique=True, nullable=True)
-    profile_pic = Column(String, unique=True, nullable=True)
-
-    is_active: bool = Column(Boolean, default=True)
-    rooms_joined: list = Column(ARRAY(String), default=[])
-    friends: list = Column(ARRAY(UUID(as_uuid=True)), default=[])
+    id: str | Column[uuid.UUID] = Column(
+        UUID(as_uuid=True), default=uuid.uuid4, primary_key=True, index=True
+    )
+    email: str | Column[str] = Column(String, unique=True, index=True)
+    username: str | Column[str] = Column(String, unique=True, index=True)
+    hashed_password: str | Column[str] = Column(String)
+    google_id: str | Column[str] = Column(String, unique=True, nullable=True)
+    profile_pic: str | Column[str] = Column(String, unique=True, nullable=True)
+    is_active: bool | Column[bool] = Column(Boolean, default=True)
+    rooms_joined: list[Never | str] | Column[Never] = Column(ARRAY(String), default=[])
+    friends: list[Never | str] | Column[Never] = Column(
+        ARRAY(UUID(as_uuid=True)), default=[]
+    )
 
     auth_data = relationship("AuthData", back_populates="user")
     owned_rooms = relationship("RoomsModel", back_populates="owner")

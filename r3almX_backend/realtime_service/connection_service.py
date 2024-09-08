@@ -1,6 +1,5 @@
 import asyncio
 import datetime
-from queue import Queue
 from typing import Dict
 
 import redis
@@ -8,13 +7,8 @@ from fastapi import Depends, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from jose import JWTError, jwt
 
-from r3almX_backend.auth_service.auth_utils import TokenData
 from r3almX_backend.auth_service.Config import UsersConfig
-from r3almX_backend.auth_service.user_handler_utils import (
-    get_db,
-    get_user_by_email,
-    get_user_by_username,
-)
+from r3almX_backend.auth_service.user_handler_utils import get_db, get_user_by_email
 from r3almX_backend.auth_service.user_models import User
 from r3almX_backend.realtime_service.main import realtime
 
@@ -110,7 +104,7 @@ async def send_periodic_status_update(websocket, user_id):
             await websocket.send_json(
                 {"type": "STATUS_UPDATE", "status": current_status}
             )
-    except RuntimeError as e:
+    except RuntimeError:
         pass
 
 

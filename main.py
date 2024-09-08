@@ -1,8 +1,6 @@
 import logging
 import subprocess
 
-import uvicorn
-
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     # subprocess.Popen("granian --interface asgi r3almX_backend:r3almX  --port=8000")

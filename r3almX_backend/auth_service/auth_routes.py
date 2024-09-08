@@ -1,13 +1,11 @@
 import secrets
-from datetime import timedelta
 
 import pyotp
-from fastapi import Body, Depends, HTTPException, Query, Request, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import Body, Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordBearer
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 from jose import JWTError, jwt
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from r3almX_backend.auth_service.Config import UsersConfig
 from r3almX_backend.auth_service.user_handler_utils import (
@@ -31,12 +29,12 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 @auth_router.post("/google/callback", tags=["Auth"])
 async def auth_google_callback(request: Request, db=Depends(get_db)):
     try:
-        data = await request.json()
+        data: dict = await request.json()
         code = data.get("code")
         if not code:
             raise HTTPException(status_code=400, detail="Missing authorization code")
 
-        google_user_info = google_id_token.verify_oauth2_token(
+        google_user_info: dict = google_id_token.verify_oauth2_token(
             code,
             google_requests.Request(),
             UsersConfig.GOOGLE_CLIENT_ID,
@@ -125,8 +123,7 @@ async def assign_username(
     await db.commit()
 
     return {
-        "status"
-        "access_token": access_token,
+        "status" "access_token": access_token,
         "token_type": "bearer",
         "expire_time": expire_time,
     }
@@ -152,16 +149,14 @@ async def verify_token(token: str, db=Depends(get_db)):
             }
         return {"status": 401, "is_user_logged_in": False}
 
-    except JWTError as j:
+    except JWTError:
         return {"status": 401, "is_user_logged_in": False}
 
 
 @auth_router.get("/fetch/user", tags=["Auth"])
-async def verify_token(token: str, username: str, db=Depends(get_db)):
+async def verify_user_token(token: str, username: str, db=Depends(get_db)):
     try:
-        decoded_token = jwt.decode(
-            token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
-        )
+        jwt.decode(token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM])
 
         user = await get_user_by_username(db, username)
         print(user)
@@ -176,12 +171,12 @@ async def verify_token(token: str, username: str, db=Depends(get_db)):
             }
         return {"status": 401, "is_user_logged_in": False}
 
-    except JWTError as j:
+    except JWTError:
         return {"status": 401, "is_user_logged_in": False}
 
 
 @auth_router.get("/token/check", tags=["Auth"])
-async def verify_token(token: str, db=Depends(get_db)):
+async def verify_token_check(token: str, db=Depends(get_db)):
     try:
         decoded_token = jwt.decode(
             token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
@@ -196,7 +191,7 @@ async def verify_token(token: str, db=Depends(get_db)):
             }
         return {"status": 401, "is_user_logged_in": False}
 
-    except JWTError as j:
+    except JWTError:
         return {"status": 401, "is_user_logged_in": False}
 
 
@@ -204,7 +199,7 @@ async def verify_token(token: str, db=Depends(get_db)):
 async def login_for_access_token(
     email: str,
     password: str,
-    google_token: str = None,
+    google_token: str| None = None,
     db=Depends(get_db),
 ):
     if google_token:
@@ -229,7 +224,7 @@ async def login_for_access_token(
     access_token, expire_time = create_access_token(
         data={"sub": user.email},
     )
-    set_user_online(db, user.id)
+    await set_user_online(db, user.id)
 
     return {
         "access_token": access_token,
@@ -239,12 +234,12 @@ async def login_for_access_token(
 
 
 @auth_router.post("/token/refresh", tags=["Auth"])
-async def login_for_access_token(
+async def token_refresh(
     current_user: User = Depends(get_current_user),
 ):
     try:
         access_token = create_access_token(
-            data={"sub": current_user.username}, expire_delta=timedelta(weeks=1)
+            data={"sub": current_user.username}
         )
 
     except Exception as e:

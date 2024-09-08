@@ -1,6 +1,6 @@
 import uuid
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 
 
 class Post(BaseModel):
@@ -10,17 +10,6 @@ class Post(BaseModel):
     post_hashtags: str
     post_mentions: str
 
-    @field_validator("post_hashtags")
-    def hashtag_filter(cls, value):
-        if not value.startswith("#"):
-            raise ValueError("corrupted hashtag")
-        return value
-
-    @field_validator("post_mentions")
-    def hashtag_filter(cls, value):
-        if not value.startswith("@"):
-            raise ValueError("corrupted mentions")
-        return value
 
 
 class PostResponse(Post):

@@ -1,4 +1,6 @@
 from email.utils import parseaddr
+from typing import AsyncGenerator
+import typing
 
 from fastapi import HTTPException
 from passlib.context import CryptContext
@@ -22,7 +24,7 @@ async def get_user_by_username(db: AsyncSession, username: str) -> User:
     return result.scalars().first()
 
 
-async def get_user_by_email(db: AsyncSession, email: str):
+async def get_user_by_email(db: AsyncSession, email: str) -> User:
     result = await db.execute(select(User).filter(User.email == email))
     return result.scalars().first()
 
@@ -35,9 +37,7 @@ async def verify_password(raw_password, hashed_password):
     return password_context.verify(raw_password, hashed_password)
 
 
-async def get_users(db: AsyncSession, skip: int = 0, limit: int = 100):
-    return db.execute(select(User).offset(skip).limit(limit))
-    return result.scalars().all()
+
 
 
 def check_email(email: str):
@@ -88,6 +88,6 @@ async def create_auth_data(db: AsyncSession, user_id: str, otp_secret_key: str):
     return auth_data
 
 
-async def get_db():
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with SessionLocal() as session:
         yield session

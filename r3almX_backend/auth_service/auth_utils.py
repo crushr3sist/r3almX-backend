@@ -1,6 +1,5 @@
-from calendar import week
 from datetime import datetime, timedelta
-from typing import Literal, Optional
+from typing import Literal
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -46,7 +45,7 @@ def create_access_token(
 async def authenticate_user(
     email: str,
     password: str,
-    google_token: str = None,
+    google_token: str | None = None,
     db=Depends(get_db),
 ):
     user = await get_user_by_email(db, email=email)
@@ -89,8 +88,6 @@ async def get_current_user(
             raise credentials_exception
         token_data = TokenData(email=email)
     except JWTError as e:
-        print(f"JWT Error: {e}")
-        print(f"Token: {token}")
         raise credentials_exception from e
     user = await get_user_by_email(db, email=token_data.email)
     if user is None:
