@@ -120,8 +120,8 @@ async def connect(websocket: WebSocket, token: str, db=Depends(get_db)):
     user = await get_user_from_token(token, db)
     if user:
         await websocket.accept()
-        connection_manager.connect(user.id)
-        connection_manager.connection_sockets[user.id] = websocket
+        connection_manager.connect(str(user.id))
+        connection_manager.connection_sockets[str(user.id)] = websocket
         initial_status = connection_manager.get_status(user.id)
         await websocket.send_json({"type": "STATUS_UPDATE", "status": initial_status})
 
@@ -164,7 +164,7 @@ async def connect(websocket: WebSocket, token: str, db=Depends(get_db)):
         except (WebSocketDisconnect, RuntimeError):
             connection_manager.disconnect(user.id)
     else:
-        return websocket.close(1001)
+        return await websocket.close(1001)
 
 
 # Now to use the NotificationSystem to send a notification to a user:

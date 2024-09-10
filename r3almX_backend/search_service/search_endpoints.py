@@ -36,7 +36,7 @@ async def get_friends(
 
 
 @search_service.get("/tag")
-def get_friends(
+def get_tags(
     user: User = Depends(get_current_user),
     db=Depends(get_db),
     query: list[str] = Query(),
