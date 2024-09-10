@@ -1,6 +1,6 @@
 import datetime
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from sqlalchemy import Column, DateTime, ForeignKey, String, Table
 from sqlalchemy.dialects.postgresql import UUID
@@ -36,15 +36,21 @@ class DynamicModelBase(Base, metaclass=DynamicModelMeta):
         return result
 
 
-def get_dynamic_model(table_name: str, columns: list[Column]) -> Any:
+def get_dynamic_model(table_name: str, columns: List[Column[Any]]) -> Any:
     return type(
         f"DynamicModel_{table_name}",
         (DynamicModelBase,),
         {
             "__tablename__": table_name,
-            "__table_args__": columns,
+            "__table__": Table(
+                table_name,
+                metadata_obj,
+                *columns,  # Pass columns directly here
+                extend_existing=True  # Extend existing tables if necessary
+            ),
         },
     )
+
 
 
 def get_channel_model(room_id: str) -> Any:

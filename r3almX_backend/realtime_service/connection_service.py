@@ -59,7 +59,7 @@ class Connection:
         )
 
     def get_status(self, user_id) -> str:
-        return self.connection_status_cache.get(user_id, "offline")
+        return self.connection_status_cache.get(user_id, "online")
 
     def set_status(self, user_id, status):
         if status in ["online", "offline", "dnd"]:
