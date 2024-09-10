@@ -1,7 +1,7 @@
 import secrets
 
 import pyotp
-from fastapi import Body, Depends, HTTPException, Request, status
+from fastapi import Body, Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
@@ -97,7 +97,9 @@ async def create_user(
     try:
         db_user = await create_user_record(db=db, user=user)
         otp_secret_key = pyotp.random_base32()
-        await create_auth_data(db=db, user_id=db_user.id, otp_secret_key=otp_secret_key)
+        await create_auth_data(
+            db=db, user_id=str(db_user.id), otp_secret_key=otp_secret_key
+        )
 
         return {"status_code": 200, "detail": "User created successfully"}
     except Exception as e:
@@ -176,13 +178,15 @@ async def verify_user_token(token: str, username: str, db=Depends(get_db)):
 
 
 @auth_router.get("/token/check", tags=["Auth"])
-async def verify_token_check(token: str, db=Depends(get_db)):
+async def verify_token_check(token: str = Query(), db=Depends(get_db)):
+    if token == "null" or token is None:
+        return HTTPException(401, "token is null")
     try:
         decoded_token = jwt.decode(
             token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
         )
 
-        user = await get_user_by_email(db, decoded_token.get("sub"))
+        user = await get_user_by_email(db, str(decoded_token.get("sub")))
         if user:
             return {
                 "status": 200,
@@ -199,7 +203,7 @@ async def verify_token_check(token: str, db=Depends(get_db)):
 async def login_for_access_token(
     email: str,
     password: str,
-    google_token: str| None = None,
+    google_token: str | None = None,
     db=Depends(get_db),
 ):
     if google_token:
@@ -238,9 +242,7 @@ async def token_refresh(
     current_user: User = Depends(get_current_user),
 ):
     try:
-        access_token = create_access_token(
-            data={"sub": current_user.username}
-        )
+        access_token = create_access_token(data={"sub": current_user.username})
 
     except Exception as e:
         return {"error": e, "status": 500}
