@@ -32,3 +32,4 @@ async def init_db():
             return True
     except Exception:
         return False
+

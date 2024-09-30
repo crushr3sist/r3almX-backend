@@ -23,7 +23,6 @@ class RealmX(FastAPI):
         )
         self.add_routes()
         self.configure_middleware()
-        self.dotenv = dotenv_values(".env")
 
     def configure_middleware(self):
         self.add_middleware(
@@ -33,7 +32,7 @@ class RealmX(FastAPI):
             allow_headers=["*"],
         )
         self.add_middleware(GZipMiddleware)
-        self.add_middleware(SessionMiddleware, secret_key=self.dotenv["SECRET_KEY"])
+        self.add_middleware(SessionMiddleware, secret_key="aloweuifhlaiuwegfliauwegbf")
 
     def add_routes(self):
         from r3almX_backend.auth_service.main import auth_router

@@ -15,7 +15,7 @@ from r3almX_backend.realtime_service.main import realtime
 
 async def get_user_from_token(token: str, db) -> User:
     try:
-        payload = jwt.decode(
+        payload: dict = jwt.decode(
             token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
         )
         email: str = payload.get("sub")
@@ -37,7 +37,8 @@ class Connection:
         self.connection_status_cache[user_id] = "online"
         self.set_status_cache(user_id, "online")
 
-    def disconnect(self, user_id):
+    async def disconnect(self, user_id):
+        print("offline was called")
         if user_id in self.connection_status_cache:
             del self.connection_status_cache[user_id]
         if user_id in self.connection_sockets:
@@ -47,7 +48,10 @@ class Connection:
     def get_status_cache(self, user_id) -> Dict[str, str]:
         cached_status = self.redis_client.hgetall("user_status")
         return {user_id: status for user_id, status in cached_status.items()}
-
+    def get_user_status (self, user_id) -> str:
+        cached_status = self.redis_client.hget("user_status")
+        return cached_status.value
+    
     def set_dnd(self, user_id):
         # class C: integer notif push (silent number increment)
         pass
@@ -111,7 +115,7 @@ async def send_periodic_status_update(websocket, user_id):
 @realtime.get("/status")
 async def read_redis(token: str, db=Depends(get_db)):
     user = await get_user_from_token(token, db)
-    cached_data = connection_manager.get_status_cache(user.id)
+    cached_data = connection_manager.get_status(user.id)
     return JSONResponse(cached_data)
 
 
@@ -162,7 +166,7 @@ async def connect(websocket: WebSocket, token: str, db=Depends(get_db)):
                             connection_manager.disconnect(user.id)
                             break
         except (WebSocketDisconnect, RuntimeError):
-            connection_manager.disconnect(user.id)
+            await connection_manager.disconnect(user.id)
     else:
         return await websocket.close(1001)
 
