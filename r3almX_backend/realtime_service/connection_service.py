@@ -48,13 +48,10 @@ class Connection:
     def get_status_cache(self, user_id) -> Dict[str, str]:
         cached_status = self.redis_client.hgetall("user_status")
         return {user_id: status for user_id, status in cached_status.items()}
-    def get_user_status (self, user_id) -> str:
+
+    def get_user_status(self, user_id) -> str:
         cached_status = self.redis_client.hget("user_status")
         return cached_status.value
-    
-    def set_dnd(self, user_id):
-        # class C: integer notif push (silent number increment)
-        pass
 
     def is_connected(self, user_id) -> bool:
         return (
@@ -66,7 +63,7 @@ class Connection:
         return self.connection_status_cache.get(user_id, "online")
 
     def set_status(self, user_id, status):
-        if status in ["online", "offline", "dnd"]:
+        if status in ["online", "offline", "dnd", "idle"]:
             self.connection_status_cache[user_id] = status
             self.set_status_cache(user_id, status)
             getattr(self, f"set_{status}")(user_id)
@@ -112,11 +109,18 @@ async def send_periodic_status_update(websocket, user_id):
         pass
 
 
-@realtime.get("/status")
-async def read_redis(token: str, db=Depends(get_db)):
+@realtime.get("/status/get")
+async def get_status(token: str, db=Depends(get_db)):
     user = await get_user_from_token(token, db)
     cached_data = connection_manager.get_status(user.id)
     return JSONResponse(cached_data)
+
+
+@realtime.post("/status/change")
+async def update_status(token: str, new_status: str, db=Depends(get_db)):
+    user = await get_user_from_token(token, db)
+    connection_manager.set_status(user.id, new_status)
+    return {"status": "200", "message": "status set"}
 
 
 @realtime.websocket("/connection")
@@ -145,11 +149,7 @@ async def connect(websocket: WebSocket, token: str, db=Depends(get_db)):
                         connection_manager.set_status_cache(
                             user.id, connection_manager.get_status(user.id)
                         )
-                    connection_change_request = await websocket.receive_json()
-                    if "status" in connection_change_request:
-                        connection_manager.set_status(
-                            user.id, connection_change_request["status"]
-                        )
+
                 except asyncio.TimeoutError:
                     try:
                         await websocket.send_text("ping")
@@ -167,6 +167,8 @@ async def connect(websocket: WebSocket, token: str, db=Depends(get_db)):
                             break
         except (WebSocketDisconnect, RuntimeError):
             await connection_manager.disconnect(user.id)
+            return await websocket.close(1001)
+
     else:
         return await websocket.close(1001)
 
