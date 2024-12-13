@@ -31,6 +31,13 @@ class Token(BaseModel):
 def create_access_token(
     data: dict,
 ):
+    """
+    The function `create_access_token` generates a JWT access token with an expiration date two weeks from the current date.
+
+    :param data: The `data` parameter is a dictionary containing the information that will be encoded into the access token. This information typically includes details about the user or client for whom the access token is being generated
+    :type data: dict
+    :return: The `create_access_token` function returns a tuple containing the encoded access token and the expiration date of the token.
+    """
     data_to_encode = data.copy()
     expire = datetime.now() + timedelta(weeks=2)
     data_to_encode.update({"exp": expire})
@@ -48,6 +55,18 @@ async def authenticate_user(
     google_token: str | None = None,
     db=Depends(get_db),
 ):
+    """
+    The `authenticate_user` function in Python checks user authentication based on email, password, and optional Google token.
+
+    :param email: The `email` parameter in the `authenticate_user` function is a string that represents the email address of the user trying to authenticate
+    :type email: str
+    :param password: The `password` parameter in the `authenticate_user` function is a string that represents the password provided by the user for authentication
+    :type password: str
+    :param google_token: The `google_token` parameter in the `authenticate_user` function is used for authentication with Google. If a `google_token` is provided, the function will attempt to verify the token using Google's OAuth2 API. If the verification is successful and the Google user ID matches the user's Google ID
+    :type google_token: str | None
+    :param db: The `db` parameter in the `authenticate_user` function is a dependency that is used to get a database connection. It is obtained using the `Depends` function from the FastAPI framework. The `get_db` function is likely a helper function that provides access to the database connection within the
+    :return: The `authenticate_user` function returns either the user object if authentication is successful, or `False` if authentication fails.
+    """
     user = await get_user_by_email(db, email=email)
     if not user:
         return False
@@ -70,11 +89,21 @@ async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
 ):
+    """
+    The `get_current_user` function validates a JWT token, decodes it to extract the email, and retrieves the user from the database based on the email.
+
+    :param token: The `token` parameter is used to authenticate the user. It is obtained from the request headers and is expected to be in a specific format. In this case, it is validated using an OAuth2 scheme. If the token is valid, it is decoded to extract the user's email address for further
+    :type token: str
+    :param db: The `db` parameter in the `get_current_user` function is an instance of an asynchronous database session. It is obtained using the `get_db` dependency, which likely sets up a connection to the database for interacting with user data. This parameter is used within the function to query the database and
+    :type db: AsyncSession
+    :return: The `get_current_user` function is returning the user object retrieved from the database based on the email extracted from the JWT token. If the token is invalid or the user does not exist in the database, it raises a `HTTPException` with a status code of 401 (UNAUTHORIZED) and the detail message "Could not validate credentials".
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
     try:
         if not token or "." not in token:
             print(f"Invalid token format: {token}")

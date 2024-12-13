@@ -1,6 +1,5 @@
 from email.utils import parseaddr
 from typing import AsyncGenerator
-import typing
 
 from fastapi import HTTPException
 from passlib.context import CryptContext
@@ -35,9 +34,6 @@ def hash_password(password):
 
 async def verify_password(raw_password, hashed_password):
     return password_context.verify(raw_password, hashed_password)
-
-
-
 
 
 def check_email(email: str):

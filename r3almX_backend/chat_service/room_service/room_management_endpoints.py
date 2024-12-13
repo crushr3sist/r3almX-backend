@@ -39,7 +39,7 @@ async def create_room_endpoint(
         await conn.run_sync(Base.metadata.create_all)
 
     # Update the user's rooms_joined
-    user.rooms_joined = user.rooms_joined + [str(new_room.id)]
+    user.rooms_joined = list(user.rooms_joined) + [str(new_room.id)]
     await db.commit()
 
     return {"status": 200, "rooms": new_room, "user": user}

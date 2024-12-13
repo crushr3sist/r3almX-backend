@@ -164,13 +164,13 @@ class RoomManager:
         channel = self.rabbit_channels.get(room_id)
         _user = await get_user(self.db, str(user))
         message_data: MessageDataOut = {
-            "uid": str(user),
-            "username": _user.username,
-            "room_id": room_id,
             "message": message["message"],
-            "mid": mid,
-            "channel_id": message["channel_id"],
+            "username": _user.username,
+            "uid": str(user),
             "timestamp": message["timestamp"],  # Assuming timestamp is added here
+            "mid": mid,
+            "room_id": room_id,
+            "channel_id": message["channel_id"],
         }
         if channel:
             await channel.default_exchange.publish(
