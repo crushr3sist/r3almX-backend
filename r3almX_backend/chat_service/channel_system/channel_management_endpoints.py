@@ -3,9 +3,10 @@ import time
 import uuid
 
 import redis
-from fastapi import Depends, HTTPException, Query
+from fastapi import Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from r3almX_backend.auth_service.auth_utils import get_current_user
 from r3almX_backend.auth_service.user_handler_utils import get_db
@@ -17,9 +18,6 @@ from r3almX_backend.chat_service.channel_system.channel_utils import (
     insert_to_messages_table,
 )
 from r3almX_backend.chat_service.channel_system.main import channel_manager
-from r3almX_backend.chat_service.models.channels_model import ChannelsModel
-from r3almX_backend.chat_service.models.rooms_model import RoomsModel
-from r3almX_backend.database import *
 
 
 class MessageModel(BaseModel):
@@ -68,7 +66,7 @@ async def fetch_channels(
 
 
 @channel_manager.post("/message/insert", tags=["Channel"])
-async def create_channel(
+async def insert_message(
     channel_id: str,
     message: str,
     room_id: str,
@@ -130,13 +128,13 @@ async def delete_channel(
         temp_redis.delete(f"room:{room_id}:channel:{channel_id}:messages")
     except Exception as e:
         print(e, "\n")
-        raise HTTPException(status_code=500, detail=f"Failed to remove cache.") from e
+        raise HTTPException(status_code=500, detail="Failed to remove cache.") from e
     temp_redis.close()
     return {"message": "Channel and its messages deleted successfully."}
 
 
 @channel_manager.delete("/delete/message", tags=["Channel"])
-async def delete_channel(
+async def delete_message(
     room_id, message_id, user: User = Depends(get_current_user), db=Depends(get_db)
 ):
     message_table = get_message_model(room_id)

@@ -3,7 +3,6 @@ from contextlib import asynccontextmanager
 
 import psycopg2
 import sqlalchemy
-from dotenv import dotenv_values
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -87,4 +86,4 @@ class RealmX(FastAPI):
 r3almX = RealmX(lifespan=init_database)
 
 
-from .proj_logger import *
+from .proj_logger import *  # noqa: E402, F403
