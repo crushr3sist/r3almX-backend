@@ -30,4 +30,5 @@ dependencies = [
     "passlib>=1.7.4",
     "sqlalchemy-searchable>=2.1.0",
     "aiopg>=1.4.0",
+    "loguru>=0.7.3",
 ]
