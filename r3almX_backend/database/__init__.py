@@ -1,6 +1,6 @@
 import pathlib
 
-from sqlalchemy import MetaData, text
+from sqlalchemy import MetaData
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -28,10 +28,8 @@ Base = declarative_base()
 async def init_db():
     try:
         async with engine.begin() as conn:
-            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;"))
-            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
-
             await conn.run_sync(Base.metadata.create_all)
             return True
     except Exception:
         return False
+

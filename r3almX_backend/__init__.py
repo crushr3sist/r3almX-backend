@@ -1,45 +1,16 @@
-import asyncio
-from contextlib import asynccontextmanager
-
-import psycopg2
-import sqlalchemy
+from dotenv import dotenv_values
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from r3almX_backend.database import init_db
-
 from .version import __version__
 
 
-@asynccontextmanager
-async def init_database(app: FastAPI):
-    try:
-        await init_db()
-        yield
-    except (
-        sqlalchemy.exc.OperationalError,
-        psycopg2.OperationalError,
-    ):
-
-        async def retry():
-            print("db connection hitch, retrying")
-            await init_db()
-            asyncio.sleep(3)
-
-        coros = [retry() for _ in range(5)]
-        await asyncio.gather(*coros)
-
-
 class RealmX(FastAPI):
-
-    def __init__(
-        self, *, title: str = "r3almX", description: str = "r3almX API", lifespan
-    ):
+    def __init__(self, *, title: str = "r3almX", description: str = "r3almX API"):
         super().__init__(
             title=title,
-            lifespan=lifespan,
             version=str(__version__),
             description=description,
             tags_metadata=[
@@ -83,7 +54,7 @@ class RealmX(FastAPI):
         self.include_router(channel_manager)
 
 
-r3almX = RealmX(lifespan=init_database)
+r3almX = RealmX()
+from .inst_modifiers import *
 
-
-from .proj_logger import *  # noqa: E402, F403
+# from .proj_logger import *

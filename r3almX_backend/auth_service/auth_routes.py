@@ -19,7 +19,6 @@ from r3almX_backend.auth_service.user_handler_utils import (
 from r3almX_backend.auth_service.user_schemas import UserCreate
 
 from .auth_utils import authenticate_user, create_access_token, get_current_user
-from .Config import UsersConfig
 from .main import auth_router
 from .user_models import User
 
@@ -66,11 +65,9 @@ async def auth_google_callback(request: Request, db=Depends(get_db)):
             except Exception as e:
                 return HTTPException(status_code=500, detail=e)
         user = await get_user_by_email(db, email)
-        print(user)
         username_set = True
         if user.email == user.username:
             username_set = False
-        print(str(user.email))
         user_access_token, expire_time = create_access_token(
             data={"sub": str(user.email)}
         )
@@ -83,7 +80,6 @@ async def auth_google_callback(request: Request, db=Depends(get_db)):
         }
 
     except Exception as e:
-        print(e)
         raise HTTPException(status_code=500, detail=f"Google login failed: {str(e)}")
 
 
@@ -152,7 +148,6 @@ async def verify_token(token: str = Depends(get_token_from_header), db=Depends(g
         if not isinstance(email, str):
             raise HTTPException(status_code=400, detail="Invalid token payload")
         user = await get_user_by_email(db, email)
-        print(user)
         if user:
             return {
                 "status": 200,
@@ -176,7 +171,6 @@ async def verify_user_token(
         jwt.decode(token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM])
 
         user = await get_user_by_username(db, username)
-        print(user)
         if user:
             return {
                 "status": 200,
@@ -230,12 +224,12 @@ async def login_for_access_token(
             google_token=google_token,
             db=db,
         )
-    user = await authenticate_user(
-        email=email,
-        password=password,
-        db=db,
-    )
-    print(email, password)
+    else:
+        user = await authenticate_user(
+            email=email,
+            password=password,
+            db=db,
+        )
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
