@@ -52,6 +52,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
+    volumes:
+      - ./r3almX_backend:/app/r3almX_backend
     depends_on:
       - postgres
       - redis
