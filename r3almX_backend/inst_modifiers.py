@@ -1,12 +1,13 @@
 from asyncio.log import logger
+
 import psycopg2
 import sqlalchemy
 
-import r3almX_backend
+from r3almX_backend import r3almX
 from r3almX_backend.database import init_db
 
 
-@r3almX_backend.r3almX.on_event("startup")
+@r3almX.on_event("startup")
 async def init_database():
     try:
         await init_db()

@@ -1,1 +1,0 @@
-mypy ./r3almx_backend --check-untyped-defs --disable-error-code import-untyped > type_issues

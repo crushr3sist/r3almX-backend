@@ -216,7 +216,6 @@ class RoomManager:
             room.remove(websocket)
             if not room:
                 del self.rooms[room_id]
-
                 await self.stop_broadcast_task(room_id)
 
                 queue = self.rabbit_queues[room_id]

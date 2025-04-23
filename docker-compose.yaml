@@ -1,5 +1,3 @@
-version: "3.8"
-
 volumes:
   data:
   rabbitmq-data:
@@ -48,16 +46,17 @@ services:
       - my-network
     restart: always
 
-  # realmx:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - "8000:8000"
-  #   depends_on:
-  #     - postgres
-  #     - redis
-  #     - rabbitmq
-
-  #   networks:
-  #     - my-network
+  realmx:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    volumes:
+      - ./r3almX_backend:/realmx
+    networks:
+      - my-network

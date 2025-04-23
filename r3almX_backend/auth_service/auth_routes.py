@@ -179,6 +179,7 @@ async def verify_user_token(
                     "email": user.email,
                     "pic": user.profile_pic,
                 },
+                "is_user_logged_in": True,
             }
         return {"status": 401, "is_user_logged_in": False}
 
@@ -191,7 +192,7 @@ async def verify_token_check(
     token: str = Depends(get_token_from_header), db=Depends(get_db)
 ):
     if token == "null" or token is None:
-        return HTTPException(401, "token is null")
+        return {"status": 401, "is_user_logged_in": False}
     try:
         decoded_token = jwt.decode(
             token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
