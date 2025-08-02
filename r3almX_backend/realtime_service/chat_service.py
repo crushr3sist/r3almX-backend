@@ -44,7 +44,7 @@ async def get_rabbit_connection():
     # If the connection is None or closed, create a new connection
     if not rabbit_connection or rabbit_connection.is_closed:
         rabbit_connection = await aio_pika.connect_robust(
-            "amqp://rabbitmq:rabbitmq@localhost:5672/"
+            "amqp://rabbitmq:rabbitmq@rabbitmq:5672/"
         )
     return rabbit_connection
 

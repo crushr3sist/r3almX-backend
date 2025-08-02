@@ -1,8 +1,14 @@
+from asyncio.log import logger
+
+import psycopg2
+import sqlalchemy
 from dotenv import dotenv_values
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+
+from r3almX_backend.database import init_db
 
 from .version import __version__
 
@@ -55,3 +61,5 @@ class RealmX(FastAPI):
 
 
 r3almX = RealmX()
+
+from .inst_modifiers import *

@@ -28,5 +28,7 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Reset the entrypoint, don't invoke `uv`
 ENTRYPOINT []
 
+EXPOSE 8080
+
 # Command that allows for hot reloading with the mounted volume
 CMD ["uv", "run", "fastapi", "dev", "r3almX_backend", "--reload", "--port=8080", "--host=0.0.0.0"]

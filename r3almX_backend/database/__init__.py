@@ -11,7 +11,7 @@ prod_uri = "postgresql+asyncpg://postgres:ronny@postgres:5432"
 development_uri = "postgresql+asyncpg://postgres:ronny@localhost:5432"
 
 
-engine = create_async_engine(development_uri, echo=False, pool_size=1000)
+engine = create_async_engine(prod_uri, echo=False, pool_size=1000)
 
 SessionLocal = async_sessionmaker(
     bind=engine,
@@ -26,10 +26,12 @@ Base = declarative_base()
 
 
 async def init_db():
+    print("trying to create tables")
     try:
         async with engine.begin() as conn:
+            print("creating tables")
             await conn.run_sync(Base.metadata.create_all)
             return True
-    except Exception:
+    except Exception as e:
+        print(e)
         return False
-
