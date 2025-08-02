@@ -1,7 +1,7 @@
 import secrets
 
 import pyotp
-from fastapi import Body, Depends, HTTPException, Request, status
+from fastapi import Body, Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
@@ -14,11 +14,11 @@ from r3almX_backend.auth_service.user_handler_utils import (
     get_db,
     get_user_by_email,
     get_user_by_username,
-    set_user_online,
+    verify_password,
 )
 from r3almX_backend.auth_service.user_schemas import UserCreate
 
-from .auth_utils import authenticate_user, create_access_token, get_current_user
+from .auth_utils import create_access_token, get_current_user
 from .main import auth_router
 from .user_models import User
 
@@ -83,6 +83,43 @@ async def auth_google_callback(request: Request, db=Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Google login failed: {str(e)}")
 
 
+@auth_router.post("/login", tags=["Auth"])
+async def login_user(
+    email: str | None, username: str | None, password: str | None, db=Depends(get_db)
+):
+    """
+    check if either of the fields are empty, return 401
+    check if user exists by email -> password
+    if username given: username -> password
+
+    if checks are correct:
+        jwt token is issued and returned to the client
+    """
+
+    if username is None or email is None or password is None:
+        return {"status_code": 401, "message": "log in data - missing fields"}
+    try:
+
+        if (queried_user := await get_user_by_email(db, email)) or (
+            queried_user := await get_user_by_username(username)
+        ):
+            if password and await verify_password(
+                password, queried_user.hashed_password
+            ):
+                access_token, expire_time = create_access_token(
+                    data={"sub": str(email)}
+                )
+
+                {
+                    "status_code": 200,
+                    "access_token": access_token,
+                    "token_type": "bearer",
+                    "expire_time": expire_time,
+                }
+    except Exception as e:
+        return {"status_code": 500, "message": f"there was an error\n{e}"}
+
+
 @auth_router.post("/register", tags=["Auth"])
 async def create_user(
     user: UserCreate = Body(...),
@@ -130,7 +167,8 @@ async def assign_username(
     await db.commit()
 
     return {
-        "status": "success",
+        "status_code": 200,
+        "message": "name changed successfully",
         "access_token": access_token,
         "token_type": "bearer",
         "expire_time": expire_time,
@@ -150,17 +188,17 @@ async def verify_token(token: str = Depends(get_token_from_header), db=Depends(g
         user = await get_user_by_email(db, email)
         if user:
             return {
-                "status": 200,
+                "status_code": 200,
                 "user": {
                     "username": user.username,
                     "email": user.email,
                     "pic": user.profile_pic,
                 },
             }
-        return {"status": 401, "is_user_logged_in": False}
+        return {"status_code": 401, "is_user_logged_in": False}
 
     except JWTError:
-        return {"status": 401, "is_user_logged_in": False}
+        return {"status_code": 401, "is_user_logged_in": False}
 
 
 @auth_router.get("/fetch/user", tags=["Auth"])
@@ -173,7 +211,7 @@ async def verify_user_token(
         user = await get_user_by_username(db, username)
         if user:
             return {
-                "status": 200,
+                "status_code": 200,
                 "user": {
                     "username": user.username,
                     "email": user.email,
@@ -181,18 +219,23 @@ async def verify_user_token(
                 },
                 "is_user_logged_in": True,
             }
-        return {"status": 401, "is_user_logged_in": False}
+        return {"status_code": 401, "is_user_logged_in": False}
 
     except JWTError:
-        return {"status": 401, "is_user_logged_in": False}
+        return {"status_code": 401, "is_user_logged_in": False}
 
 
-@auth_router.get("/token/check", tags=["Auth"])
-async def verify_token_check(
-    token: str = Depends(get_token_from_header), db=Depends(get_db)
-):
+@auth_router.get("/token/verify", tags=["Auth"])
+async def token_verify(token: str = Depends(get_token_from_header), db=Depends(get_db)):
+    """
+    requirements for valid token:
+    - must be decodable by the backend
+    - must contain a valid user within token
+    - must not be expired
+    """
+
     if token == "null" or token is None:
-        return {"status": 401, "is_user_logged_in": False}
+        return {"status_code": 401, "is_user_logged_in": False}
     try:
         decoded_token = jwt.decode(
             token, UsersConfig.SECRET_KEY, algorithms=[UsersConfig.ALGORITHM]
@@ -201,52 +244,14 @@ async def verify_token_check(
         user = await get_user_by_email(db, str(decoded_token.get("sub")))
         if user:
             return {
-                "status": 200,
+                "status_code": 200,
                 "is_user_logged_in": True,
                 "user": [user.id, user.username, user.email],
             }
-        return {"status": 401, "is_user_logged_in": False}
+        return {"status_code": 401, "is_user_logged_in": False}
 
     except JWTError:
-        return {"status": 401, "is_user_logged_in": False}
-
-
-@auth_router.post("/token", tags=["Auth"])
-async def login_for_access_token(
-    email: str,
-    password: str,
-    google_token: str | None = None,
-    db=Depends(get_db),
-):
-    if google_token:
-        user = await authenticate_user(
-            email=email,
-            password=password,
-            google_token=google_token,
-            db=db,
-        )
-    else:
-        user = await authenticate_user(
-            email=email,
-            password=password,
-            db=db,
-        )
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    access_token, expire_time = create_access_token(
-        data={"sub": user.email},
-    )
-    await set_user_online(db, user.id)
-
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "expire_time": expire_time,
-    }
+        return {"status_code": 401, "is_user_logged_in": False}
 
 
 @auth_router.post("/token/refresh", tags=["Auth"])
@@ -257,6 +262,6 @@ async def token_refresh(
         access_token = create_access_token(data={"sub": current_user.username})
 
     except Exception as e:
-        return {"error": e, "status": 500}
+        return {"error": e, "status_code": 500}
 
-    return {"access_token": access_token, "token_type": "bearer", "status": 200}
+    return {"access_token": access_token, "token_type": "bearer", "status_code": 200}
