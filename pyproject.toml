@@ -13,7 +13,6 @@ dependencies = [
     "fastapi>=0.115.12",
     "fastapi-cli>=0.0.7",
     "fastapi-pagination>=0.12.34",
-    "fastapi-utils>=0.8.0",
     "google>=3.0.0",
     "google-auth>=2.39.0",
     "itsdangerous>=2.2.0",
