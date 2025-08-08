@@ -102,7 +102,7 @@ class RoomManager:
         self.rabbit_channels: Dict[str, aio_pika.Channel] = {}
         self.broadcast_tasks: Dict[str, asyncio.Task] = {}
         self.redis_client = redis.Redis().from_url(
-            url="redis://172.22.96.1:6379", decode_responses=True, db=1
+            url="redis://192.168.68.106:6379", decode_responses=True, db=1
         )
         self.db: AsyncSession  # Declare the db attribute here
 
