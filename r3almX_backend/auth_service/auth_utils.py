@@ -76,6 +76,7 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
+
         if not token or "." not in token:
             print(f"Invalid token format: {token}")
             raise credentials_exception
@@ -85,9 +86,11 @@ async def get_current_user(
         )
         email: str = payload.get("sub")
         if email is None:
+            print("exception as called here: LINE 90", e)
             raise credentials_exception
         token_data = TokenData(email=email)
     except JWTError as e:
+        print("exception as called here: LINE 94", e)
         raise credentials_exception from e
     user = await get_user_by_email(db, email=token_data.email)
     if user is None:

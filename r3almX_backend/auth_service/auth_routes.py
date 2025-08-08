@@ -36,6 +36,7 @@ async def get_token_from_header(request: Request):
 async def auth_google_callback(request: Request, db=Depends(get_db)):
     try:
         data: dict = await request.json()
+        print(data)
         code = data.get("code")
         if not code:
             raise HTTPException(status_code=400, detail="Missing authorization code")
@@ -65,6 +66,7 @@ async def auth_google_callback(request: Request, db=Depends(get_db)):
             except Exception as e:
                 return HTTPException(status_code=500, detail=e)
         user = await get_user_by_email(db, email)
+
         username_set = True
         if user.email == user.username:
             username_set = False
@@ -160,18 +162,12 @@ async def assign_username(
         return HTTPException(404, "email was null")
     user_inst = await get_user_by_email(db, email)
     user_inst.username = str(username)
-    access_token, expire_time = create_access_token(
-        data={"sub": user_inst.email},
-    )
 
     await db.commit()
 
     return {
         "status_code": 200,
         "message": "name changed successfully",
-        "access_token": access_token,
-        "token_type": "bearer",
-        "expire_time": expire_time,
     }
 
 

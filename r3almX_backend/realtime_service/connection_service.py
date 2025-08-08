@@ -124,6 +124,7 @@ async def get_token_from_header(request: Request):
 async def read_redis(request: Request, db=Depends(get_db)):
     try:
         user = await get_user_from_token(await get_token_from_header(request), db)
+        print(user)
         cached_data = connection_manager.get_status(user.id)
         return JSONResponse(cached_data)
     except AttributeError as a:
