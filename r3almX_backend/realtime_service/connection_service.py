@@ -28,7 +28,7 @@ async def get_user_from_token(token: str, db) -> User:
 class Connection:
     def __init__(self):
         self.redis_client = redis.Redis().from_url(
-            url="redis://172.22.96.1:6379", decode_responses=True, db=0
+            url="redis://redis:6379", decode_responses=True, db=0
         )
         self.connection_status_cache: Dict[str, str] = {}
         self.connection_sockets: Dict[str, WebSocket] = {}
@@ -70,7 +70,7 @@ class Connection:
         if status in ["online", "offline", "dnd"]:
             self.connection_status_cache[user_id] = status
             self.set_status_cache(user_id, status)
-            getattr(self, f"set_{status}")(user_id)
+            # getattr(self, f"set_{status}")(user_id)
 
     def set_status_cache(self, user_id, status):
         self.redis_client.hset("user_status", str(user_id), status)

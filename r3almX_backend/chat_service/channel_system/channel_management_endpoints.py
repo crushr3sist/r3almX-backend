@@ -130,17 +130,9 @@ async def delete_channel(
         temp_redis.delete(f"room:{room_id}:channel:{channel_id}:messages")
     except Exception as e:
         print(e, "\n")
-        raise HTTPException(status_code=500, detail=f"Failed to remove cache.") from e
+        raise HTTPException(status_code=500, detail=f"Failed to remove cache: {e}") from e
     temp_redis.close()
     return {"message": "Channel and its messages deleted successfully."}
 
 
-@channel_manager.delete("/delete/message", tags=["Channel"])
-async def delete_channel(
-    room_id, message_id, user: User = Depends(get_current_user), db=Depends(get_db)
-):
-    message_table = get_message_model(room_id)
-    db.query(message_table).filter(message_table.id == message_id).delete()
-    db.commit()
 
-    return {"message": f"message-{message_id} deleted"}
