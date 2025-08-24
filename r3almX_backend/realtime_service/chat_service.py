@@ -106,6 +106,11 @@ class RoomManager:
         )
         self.db: AsyncSession  # Declare the db attribute here
 
+        print(f"rooms: {self.rooms}\n")
+        print(f"rabbit_queues: {self.rabbit_queues}\n")
+        print(f"rabbit_channels: {self.rabbit_channels}\n")
+        print(f"broadcast_tasks: {self.broadcast_tasks}\n")
+
     async def broadcast(self, room_id: str):
         try:
             queue = self.rabbit_queues.get(room_id)
@@ -163,6 +168,7 @@ class RoomManager:
     ):
         channel = self.rabbit_channels.get(room_id)
         _user = await get_user(self.db, str(user))
+
         message_data: MessageDataOut = {
             "uid": str(user),
             "username": _user.username,
@@ -172,6 +178,7 @@ class RoomManager:
             "channel_id": message["channel_id"],
             "timestamp": message["timestamp"],  # Assuming timestamp is added here
         }
+        print(message_data)
         if channel:
             await channel.default_exchange.publish(
                 aio_pika.Message(body=json.dumps(message_data).encode()),
@@ -294,13 +301,10 @@ async def websocket_endpoint(
         try:
             while True:
                 data: MessageDataIn = await websocket.receive_json()
-                mid = str(
-                    (
-                        lambda: "".join(
-                            random.choices(string.ascii_lowercase + string.digits, k=8)
-                        )
-                    )()
+                mid = "".join(
+                    random.choices(string.ascii_lowercase + string.digits, k=8)
                 )
+
                 await room_manager.add_message_to_queue(
                     room_id, data, str(user.id), mid
                 )
