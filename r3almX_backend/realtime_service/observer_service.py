@@ -7,19 +7,18 @@ import aio_pika
 from fastapi import Depends, WebSocket, WebSocketDisconnect
 
 from r3almX_backend.auth_service.user_handler_utils import get_db
-from r3almX_backend.auth_service.user_models import User
-from r3almX_backend.realtime_service.chat_service import (
-    RoomManager,
-    get_user_from_token,
-    room_manager,
-)
+from r3almX_backend.realtime_service.chat_service import RoomManager, room_manager
 from r3almX_backend.realtime_service.main import realtime
 
 
 class Observer:
+    """metrics and state of the room's live service"""
+
     def __init__(self, room_inst: RoomManager):
         self.room_inst = room_inst
+
         self.rooms_hash: str = self.gen_hash(self.serialize(self.room_inst.rooms))
+
         self.rabbit_queues_hash: str = self.gen_hash(
             self.serialize(self.room_inst.rabbit_queues)
         )
@@ -71,6 +70,7 @@ class Observer:
                 }
                 for key, ws_set in dict.items()
             }
+
         elif all(isinstance(v, aio_pika.Queue) for v in dict.values()):
             return {
                 key: {
@@ -82,6 +82,7 @@ class Observer:
                 }
                 for key, queue in dict.items()
             }
+
         elif all(isinstance(v, aio_pika.Channel) for v in dict.values()):
 
             return {
@@ -96,6 +97,7 @@ class Observer:
                 }
                 for key, channel in dict.items()
             }
+
         elif all(isinstance(v, asyncio.Task) for v in dict.values()):
             return {
                 key: {
@@ -119,28 +121,36 @@ class Observer:
     def update_check(self):
 
         _rooms_hash: str = self.gen_hash(self.serialize(self.room_inst.rooms))
+
         _rabbit_queues_hash: str = self.gen_hash(
             self.serialize(self.room_inst.rabbit_queues)
         )
+
         _rabbit_channels_hash: str = self.gen_hash(
             self.serialize(self.room_inst.rabbit_channels)
         )
+
         _broadcast_tasks_hash: str = self.gen_hash(
             self.serialize(self.room_inst.broadcast_tasks)
         )
 
         # individual if statements to update parts which need to updated
         # instead of waiting for every single piece of information to update
+
         if _rooms_hash == self.rooms_hash:
             self.rooms_hash = _rooms_hash
+
         if _rabbit_queues_hash == self.rabbit_queues_hash:
             self.rabbit_queues_hash = _rabbit_queues_hash
+
         if _rabbit_channels_hash == self.rabbit_channels_hash:
             self.rabbit_channels_hash = _rabbit_channels_hash
+
         if _broadcast_tasks_hash == self.broadcast_tasks_hash:
             self.broadcast_tasks_hash = _broadcast_tasks_hash
 
     def send(self):
+
         return {
             "rooms": self.serialize(self.room_inst.rooms),
             "rabbit_queues": self.serialize(self.room_inst.rabbit_queues),
@@ -151,11 +161,16 @@ class Observer:
 
 observer = Observer(room_inst=room_manager)
 
+"""
+ - username: oddyseys
+ - password: password
+"""
+
 
 @realtime.websocket("/logs")
-async def logs_endpoint(websocket: WebSocket, token: str, db=Depends(get_db)):
-    user: User | str = await get_user_from_token(token, db)
-    print(user)
+async def logs_endpoint(websocket: WebSocket, db=Depends(get_db)):
+    # user: User | str = await get_user_from_token(token, db)
+    # print(user)
 
     await websocket.accept()
     while True:
