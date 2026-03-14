@@ -1,7 +1,5 @@
 from asyncio.log import logger
 
-import psycopg2
-import sqlalchemy
 from dotenv import dotenv_values
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,7 +31,13 @@ class RealmX(FastAPI):
     def configure_middleware(self):
         self.add_middleware(
             CORSMiddleware,
-            allow_origins=["*", "http://localhost:3000", "http://localhost:5274"],
+            allow_origins=[
+                "*",
+                "http://localhost:3000",
+                "http://localhost:5274",
+                "http://localhost:5273",
+                "http://localhost:5272",
+            ],
             allow_methods=["*"],
             allow_headers=["*"],
         )

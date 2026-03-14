@@ -7,7 +7,12 @@ import aio_pika
 from fastapi import Depends, WebSocket, WebSocketDisconnect
 
 from r3almX_backend.auth_service.user_handler_utils import get_db
-from r3almX_backend.realtime_service.chat_service import RoomManager, room_manager
+from r3almX_backend.auth_service.user_models import User
+from r3almX_backend.realtime_service.chat_service import (
+    RoomManager,
+    get_user_from_token,
+    room_manager,
+)
 from r3almX_backend.realtime_service.main import realtime
 
 
@@ -168,9 +173,9 @@ observer = Observer(room_inst=room_manager)
 
 
 @realtime.websocket("/logs")
-async def logs_endpoint(websocket: WebSocket, db=Depends(get_db)):
-    # user: User | str = await get_user_from_token(token, db)
-    # print(user)
+async def logs_endpoint(websocket: WebSocket, token: str, db=Depends(get_db)):
+    user: User | str = await get_user_from_token(token, db)
+    print(user)
 
     await websocket.accept()
     while True:

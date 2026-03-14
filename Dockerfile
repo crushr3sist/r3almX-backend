@@ -12,6 +12,9 @@ ENV UV_LINK_MODE=copy
 # Copy dependency files for installation
 COPY uv.lock pyproject.toml ./
 
+# Install build dependencies for psycopg2 and cffi
+RUN apt-get update && apt-get install -y libpq-dev gcc libffi-dev build-essential make
+
 RUN uv sync --no-dev
 
 COPY . .
